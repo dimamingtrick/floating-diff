@@ -11,9 +11,68 @@
     "SCM Providers",
     "Other"
   ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "floatingDiff.openScmResource",
+        "title": "Open Diff in Floating Window",
+        "icon": "$(multiple-windows)"
+      },
+      {
+        "command": "floatingDiff.pickChange",
+        "title": "Open Change…",
+        "category": "Floating Diff"
+      },
+      {
+        "command": "floatingDiff.close",
+        "title": "Close Window",
+        "category": "Floating Diff"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "floatingDiff.openScmResource",
+          "when": "false"
+        },
+        {
+          "command": "floatingDiff.close",
+          "when": "false"
+        }
+      ],
+      "scm/resourceState/context": [
+        {
+          "command": "floatingDiff.openScmResource",
+          "group": "inline",
+          "when": "scmProvider == git && scmResourceGroup =~ /^(index|workingTree|untracked)$/"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "floatingDiff.pickChange",
+        "key": "ctrl+alt+d"
+      },
+      {
+        "command": "floatingDiff.close",
+        "key": "escape",
+        "when": "floatingDiff.focused && isAuxiliaryWindowFocusedContext && !findWidgetVisible && !suggestWidgetVisible && !parameterHintsVisible && !renameInputVisible && !referenceSearchVisible && !inSnippetMode && !inlineSuggestionVisible && !editorHasSelection && !editorHasMultipleSelections && !editorHoverVisible && !notificationToastsVisible && !inQuickOpen && !accessibleViewIsShown"
+      }
+    ]
+  },
   "scripts": {
+    "compile": "tsc -p . && node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
     "test:unit": "tsc -p . && mocha",
-    "test:integration": "tsc -p . && vscode-test"
+    "test:integration": "npm run compile && vscode-test",
+    "test": "npm run test:unit && npm run test:integration",
+    "vscode:prepublish": "tsc -p . --noEmit && node esbuild.mjs --production",
+    "package": "vsce package --no-dependencies --skip-license --allow-missing-repository"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -21,6 +80,8 @@
     "@types/vscode": "1.90.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
     "mocha": "^12.0.2",
     "typescript": "~5.9.0"
   }

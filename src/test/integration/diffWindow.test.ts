@@ -70,6 +70,46 @@ describe('DiffWindow', () => {
 		assert.ok(tabMatches(group.tabs[0], second));
 	});
 
+	function recordingMemory() {
+		const calls: string[] = [];
+		return {
+			calls,
+			remember: async (title: string) => { calls.push(`remember ${title}`); },
+			restore: async (title: string) => { calls.push(`restore ${title}`); },
+		};
+	}
+
+	it('restores the remembered size once, when it opens a new window', async () => {
+		const memory = recordingMemory();
+		win.dispose();
+		win = new DiffWindow({ sizeMemory: memory });
+
+		await win.show(diff('a.txt'));
+		await win.show(diff('b.txt'));
+
+		assert.deepStrictEqual(memory.calls, ['restore a.txt (Working Tree)']);
+	});
+
+	it('remembers the size before closing the focused window', async () => {
+		const memory = recordingMemory();
+		win.dispose();
+		win = new DiffWindow({ sizeMemory: memory });
+		await win.show(diff('a.txt'));
+		await waitFor(() => vscode.window.tabGroups.all.length === groupsBefore + 1, 'new group');
+
+		await win.close();
+
+		assert.deepStrictEqual(memory.calls, ['restore a.txt (Working Tree)', 'remember a.txt (Working Tree)']);
+	});
+
+	it('reports focus while its diff is the active editor', async () => {
+		await win.show(diff('a.txt'));
+		await waitFor(() => win.isFocused, 'focused after show');
+
+		await win.close();
+		await waitFor(() => !win.isFocused, 'not focused after close');
+	});
+
 	it('closes the window', async () => {
 		await win.show(diff('a.txt'));
 		await waitFor(() => vscode.window.tabGroups.all.length === groupsBefore + 1, 'new group');

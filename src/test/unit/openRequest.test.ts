@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import type { Command, Uri } from 'vscode';
 import { Change, Status } from '../../git';
-import { ChangeDeps, fromChange, fromScmCommand, OpenRequest } from '../../openRequest';
+import { ChangeDeps, fromChange, fromScmCommand, OpenRequest, showsDocument } from '../../openRequest';
 
 // Minimal stand-ins for vscode.Uri: the code under test only uses `path` and `toString()`.
 function fileUri(path: string): Uri {
@@ -108,5 +108,29 @@ describe('fromScmCommand', () => {
 	it('ignores vscode.diff with non-URI arguments', () => {
 		const cmd: Command = { command: 'vscode.diff', title: 'Open', arguments: ['a', 'b'] };
 		assert.strictEqual(fromScmCommand(cmd), undefined);
+	});
+});
+
+describe('showsDocument', () => {
+	const left = toGitUri(A, '~');
+	const diff: OpenRequest = { kind: 'diff', left, right: A, title: 'a.ts (Working Tree)' };
+	const file: OpenRequest = { kind: 'file', uri: A, title: 'a.ts (Untracked)' };
+
+	it('matches the modified side of a diff', () => {
+		assert.strictEqual(showsDocument(diff, fileUri('/repo/src/a.ts')), true);
+	});
+
+	it('matches the original side of a diff', () => {
+		assert.strictEqual(showsDocument(diff, toGitUri(A, '~')), true);
+	});
+
+	it('matches the file of a single-file request', () => {
+		assert.strictEqual(showsDocument(file, fileUri('/repo/src/a.ts')), true);
+	});
+
+	it('rejects other documents and no document', () => {
+		assert.strictEqual(showsDocument(diff, OLD), false);
+		assert.strictEqual(showsDocument(file, undefined), false);
+		assert.strictEqual(showsDocument(undefined, A), false);
 	});
 });

@@ -61,7 +61,7 @@
       {
         "command": "floatingDiff.close",
         "key": "escape",
-        "when": "floatingDiff.focused && isAuxiliaryWindowFocusedContext && !findWidgetVisible && !suggestWidgetVisible && !parameterHintsVisible && !renameInputVisible && !referenceSearchVisible && !inSnippetMode && !inlineSuggestionVisible && !editorHasSelection && !editorHasMultipleSelections && !editorHoverVisible && !notificationToastsVisible && !inQuickOpen && !accessibleViewIsShown"
+        "when": "floatingDiff.focused && isAuxiliaryWindow && !findWidgetVisible && !suggestWidgetVisible && !parameterHintsVisible && !renameInputVisible && !referenceSearchVisible && !inSnippetMode && !inlineSuggestionVisible && !editorHasSelection && !editorHasMultipleSelections && !editorHoverVisible && !notificationToastsVisible && !inQuickOpen && !accessibleViewIsShown"
       }
     ]
   },

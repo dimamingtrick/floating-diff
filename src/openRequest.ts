@@ -34,6 +34,17 @@ export function fromScmCommand(cmd: Command | undefined): OpenRequest | undefine
 	return undefined;
 }
 
+/** Whether `uri` is one of the documents shown for `req`. */
+export function showsDocument(req: OpenRequest | undefined, uri: Uri | undefined): boolean {
+	if (!req || !uri) {
+		return false;
+	}
+	const key = uri.toString();
+	return req.kind === 'diff'
+		? req.left.toString() === key || req.right.toString() === key
+		: req.uri.toString() === key;
+}
+
 const TITLE_SUFFIX: Partial<Record<Status, string>> = {
 	[Status.INDEX_MODIFIED]: 'Index',
 	[Status.INDEX_RENAMED]: 'Index',

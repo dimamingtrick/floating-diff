@@ -12,12 +12,15 @@
     "Other"
   ],
   "scripts": {
-    "test:unit": "tsc -p . && mocha"
+    "test:unit": "tsc -p . && mocha",
+    "test:integration": "tsc -p . && vscode-test"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.19.43",
     "@types/vscode": "1.90.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
     "mocha": "^12.0.2",
     "typescript": "~5.9.0"
   }

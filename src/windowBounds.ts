@@ -181,7 +181,9 @@ export class WindowSizeMemory {
 		private readonly onError: (error: unknown) => void,
 	) { }
 
+	/** Called when a new window opens; also starts the reader for the upcoming `remember`. */
 	savedBounds(): Bounds | undefined {
+		this.reader.warmUp();
 		return this.store.get();
 	}
 

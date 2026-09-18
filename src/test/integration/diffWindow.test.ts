@@ -6,16 +6,7 @@ import * as vscode from 'vscode';
 import { DiffWindow, tabMatches } from '../../diffWindow';
 import type { OpenRequest } from '../../openRequest';
 import { Bounds, MacWindowBoundsReader, WindowSizeMemory } from '../../windowBounds';
-
-async function waitFor(condition: () => boolean, what: string, timeoutMs = 5000): Promise<void> {
-	const start = Date.now();
-	while (!condition()) {
-		if (Date.now() - start > timeoutMs) {
-			throw new Error(`Timed out waiting for: ${what}`);
-		}
-		await new Promise(resolve => setTimeout(resolve, 50));
-	}
-}
+import { waitFor } from './util';
 
 describe('DiffWindow', () => {
 	let dir: string;

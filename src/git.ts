@@ -1,4 +1,4 @@
-import type { Uri } from 'vscode';
+import type { Event, Uri } from 'vscode';
 
 /**
  * Subset of the built-in Git extension API
@@ -41,6 +41,7 @@ export interface RepositoryState {
 	/** Absent in older VS Code versions. */
 	readonly untrackedChanges?: Change[];
 	readonly mergeChanges: Change[];
+	readonly onDidChange: Event<void>;
 }
 
 export interface Repository {
@@ -50,10 +51,13 @@ export interface Repository {
 
 export interface API {
 	readonly repositories: Repository[];
+	readonly onDidOpenRepository: Event<Repository>;
 	toGitUri(uri: Uri, ref: string): Uri;
 }
 
 export interface GitExtension {
 	readonly enabled: boolean;
 	getAPI(version: 1): API;
+	/** Internal, not API: the Git extension's model, used by the Source Control redirect. */
+	readonly model?: unknown;
 }

@@ -4,10 +4,11 @@ Opens Source Control diffs in a floating window instead of a tab, like WebStorm.
 
 ## Usage
 
-- Hover a file in Source Control → click the window icon.
+- Click (or double-click, per `workbench.list.openMode`) a file in Source Control, or hover it and click the window icon.
 - `Ctrl+Alt+D` (macOS: `⌃⌥D`) → pick a changed file → Enter.
 - The window is reused: the next file replaces the current one.
 - `Esc` closes the window (after closing find, suggestions, selection, etc.).
+- Setting `floatingDiff.openFromSourceControl` (default on): clicks in Source Control open the floating window. This relies on internals of the built-in Git extension; if a VS Code update changes them, clicks open tabs as usual and the icon keeps working.
 - macOS: the window reopens with the size and position it had when you last closed it with `Esc` (no permissions needed).
 
 ## Build and install

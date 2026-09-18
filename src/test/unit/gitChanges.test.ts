@@ -12,15 +12,17 @@ function change(path: string, status: Status, renameUri?: Uri): Change {
 	return { uri, originalUri: uri, renameUri, status };
 }
 
+const noEvent = () => ({ dispose: () => { } });
+
 function repo(root: string, state: Partial<RepositoryState>): Repository {
 	return {
 		rootUri: fileUri(root),
-		state: { indexChanges: [], workingTreeChanges: [], mergeChanges: [], ...state },
+		state: { indexChanges: [], workingTreeChanges: [], mergeChanges: [], onDidChange: noEvent, ...state },
 	};
 }
 
 function api(...repositories: Repository[]): API {
-	return { repositories, toGitUri: uri => uri };
+	return { repositories, onDidOpenRepository: noEvent, toGitUri: uri => uri };
 }
 
 describe('listChanges', () => {

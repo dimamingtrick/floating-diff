@@ -15,7 +15,9 @@
     "vscode.git"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "contributes": {
     "commands": [
       {
@@ -63,7 +65,17 @@
         "key": "escape",
         "when": "floatingDiff.focused && isAuxiliaryWindow && !findWidgetVisible && !suggestWidgetVisible && !parameterHintsVisible && !renameInputVisible && !referenceSearchVisible && !inSnippetMode && !inlineSuggestionVisible && !editorHasSelection && !editorHasMultipleSelections && !editorHoverVisible && !notificationToastsVisible && !inQuickOpen && !accessibleViewIsShown"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Floating Diff",
+      "properties": {
+        "floatingDiff.openFromSourceControl": {
+          "type": "boolean",
+          "default": true,
+          "description": "Clicking a file in Source Control opens it in the floating window, like the window icon. Relies on internals of the built-in Git extension: if a VS Code update changes them, clicks open tabs as usual."
+        }
+      }
+    }
   },
   "scripts": {
     "compile": "tsc -p . && node esbuild.mjs",

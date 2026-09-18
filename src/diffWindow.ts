@@ -1,8 +1,11 @@
 import * as vscode from "vscode";
 import { OpenRequest, showsDocument } from "./openRequest";
+import type { Bounds } from "./windowBounds";
 
 /** Internal workbench command: creates a floating editor window and focuses its group. */
 const NEW_WINDOW_COMMAND = "workbench.action.newEmptyEditorWindow";
+/** Internal editor group id meaning "a new floating window" (VS Code's AUX_WINDOW_GROUP). */
+const AUX_WINDOW_GROUP = -3;
 const FOCUSED_CONTEXT_KEY = "floatingDiff.focused";
 const NEW_GROUP_TIMEOUT_MS = 1000;
 
@@ -39,10 +42,18 @@ function column(group: vscode.TabGroup | undefined): string {
   return group ? String(group.viewColumn) : "none";
 }
 
+/** The group showing `req`; floating windows come after the main window, so the highest column wins. */
+function findGroupShowing(req: OpenRequest): vscode.TabGroup | undefined {
+  return vscode.window.tabGroups.all
+    .filter((g) => g.tabs.some((t) => tabMatches(t, req)))
+    .sort((a, b) => b.viewColumn - a.viewColumn)[0];
+}
+
 /** Keeps the size of the floating window between windows. */
 export interface SizeMemory {
-  remember(title: string): Promise<void>;
-  restore(title: string): Promise<void>;
+  savedBounds(): Bounds | undefined;
+  /** Saves the size of the frontmost window, which must be ours. */
+  remember(): Promise<void>;
 }
 
 export interface DiffWindowOptions {
@@ -80,71 +91,28 @@ export class DiffWindow implements vscode.Disposable {
 
   /** The editor group of our floating window, or undefined when it is closed. */
   resolveGroup(): vscode.TabGroup | undefined {
-    const all = vscode.window.tabGroups.all;
-    if (this.group && all.includes(this.group)) {
+    if (this.group && vscode.window.tabGroups.all.includes(this.group)) {
       return this.group;
     }
-    // Older builds (e.g. Cursor) recreate TabGroup objects on layout changes:
-    // find the group that shows our request. Floating windows come after the
-    // main window, so the highest view column wins.
-    const req = this.current;
-    this.group = req
-      ? all
-          .filter((g) => g.tabs.some((t) => tabMatches(t, req)))
-          .sort((a, b) => b.viewColumn - a.viewColumn)[0]
-      : undefined;
-    if (req) {
-      this.log(`group re-resolved by content: column ${column(this.group)}`);
-    }
+    // Older builds (e.g. Cursor) recreate TabGroup objects on layout changes.
+    this.group = this.current ? findGroupShowing(this.current) : undefined;
     return this.group;
   }
 
   async show(req: OpenRequest): Promise<void> {
     const previous = this.current;
     let group = this.resolveGroup();
-    let created = false;
     this.log(`show "${req.title}": reusing column ${column(group)}`);
 
-    if (!group) {
-      group = await this.createWindowGroup();
-      created = group !== undefined;
-      if (!group) {
-        this.warnFallback();
-      }
-    }
-
-    const options: vscode.TextDocumentShowOptions = {
-      viewColumn: group?.viewColumn ?? vscode.ViewColumn.Active,
-      preview: true,
-      preserveFocus: false,
-    };
-    if (req.kind === "diff") {
-      await vscode.commands.executeCommand(
-        "vscode.diff",
-        req.left,
-        req.right,
-        req.title,
-        options,
-      );
+    if (group) {
+      await this.open(req, group.viewColumn);
     } else {
-      await vscode.commands.executeCommand(
-        "vscode.open",
-        req.uri,
-        options,
-        req.title,
-      );
-    }
-
-    if (created) {
-      await this.options.sizeMemory?.restore(req.title);
+      group = await this.openInNewWindow(req);
     }
 
     this.current = req;
-    this.group = group ?? this.resolveGroup() ?? vscode.window.tabGroups.activeTabGroup;
-    const active = vscode.window.tabGroups.activeTabGroup;
-    this.log(
-      `opened in column ${options.viewColumn}; ours ${column(this.group)}, active ${column(active)}, same object ${active === this.group}`,
-    );
+    this.group =
+      group ?? findGroupShowing(req) ?? vscode.window.tabGroups.activeTabGroup;
     if (previous && !sameRequest(previous, req)) {
       const stale = this.group.tabs.filter(
         (t) => tabMatches(t, previous) && !t.isDirty,
@@ -159,14 +127,12 @@ export class DiffWindow implements vscode.Disposable {
   async close(): Promise<void> {
     const group = this.resolveGroup();
     const req = this.current;
-    this.log(
-      `close: ours ${column(group)}, active ${column(vscode.window.tabGroups.activeTabGroup)}, current "${req?.title ?? "none"}"`,
-    );
+    this.log(`close: ours ${column(group)}, current "${req?.title ?? "none"}"`);
     if (!group || !req) {
       return;
     }
-    // Reads the size only if our window is in front (checked by its title).
-    await this.options.sizeMemory?.remember(req.title);
+    // Esc was pressed in our window, so it is the frontmost one right now.
+    await this.options.sizeMemory?.remember();
     const ours = group.tabs.filter((t) => tabMatches(t, req));
     if (ours.length > 0) {
       await vscode.window.tabGroups.close(ours);
@@ -191,32 +157,118 @@ export class DiffWindow implements vscode.Disposable {
     );
   }
 
-  private async createWindowGroup(): Promise<vscode.TabGroup | undefined> {
+  private async open(
+    req: OpenRequest,
+    viewColumn: vscode.ViewColumn,
+  ): Promise<void> {
+    const options: vscode.TextDocumentShowOptions = {
+      viewColumn,
+      preview: true,
+      preserveFocus: false,
+    };
+    if (req.kind === "diff") {
+      await vscode.commands.executeCommand(
+        "vscode.diff",
+        req.left,
+        req.right,
+        req.title,
+        options,
+      );
+    } else {
+      await vscode.commands.executeCommand(
+        "vscode.open",
+        req.uri,
+        options,
+        req.title,
+      );
+    }
+  }
+
+  /** Opens `req` in a new floating window, sized like the last one. */
+  private async openInNewWindow(
+    req: OpenRequest,
+  ): Promise<vscode.TabGroup | undefined> {
+    const bounds = this.options.sizeMemory?.savedBounds();
+    const editorOptions = {
+      preview: true,
+      preserveFocus: false,
+      auxiliary: bounds ? { bounds } : undefined,
+    };
     const start = Date.now();
+    const newGroup = this.nextNewGroup();
+    try {
+      // The internal commands accept AUX_WINDOW_GROUP and window bounds,
+      // which the public `vscode.diff` / `vscode.open` do not.
+      if (req.kind === "diff") {
+        await vscode.commands.executeCommand(
+          "_workbench.diff",
+          req.left,
+          req.right,
+          req.title,
+          [AUX_WINDOW_GROUP, editorOptions],
+        );
+      } else {
+        await vscode.commands.executeCommand(
+          "_workbench.open",
+          req.uri,
+          [AUX_WINDOW_GROUP, editorOptions],
+          req.title,
+        );
+      }
+    } catch (error) {
+      newGroup.cancel();
+      this.log(`opening in a new window failed: ${String(error)}`);
+      return this.openInEmptyWindow(req);
+    }
+    const group = (await newGroup.group) ?? findGroupShowing(req);
+    this.log(
+      `new window${bounds ? ` at ${bounds.width}x${bounds.height}` : ""}: column ${column(group)} after ${Date.now() - start}ms`,
+    );
+    return group;
+  }
+
+  /** Fallback: create an empty floating window first, then open `req` in it. */
+  private async openInEmptyWindow(
+    req: OpenRequest,
+  ): Promise<vscode.TabGroup | undefined> {
+    const newGroup = this.nextNewGroup();
+    let group: vscode.TabGroup | undefined;
+    try {
+      await vscode.commands.executeCommand(NEW_WINDOW_COMMAND);
+      group = await newGroup.group;
+    } catch (error) {
+      newGroup.cancel();
+      this.log(`new empty window failed: ${String(error)}`);
+    }
+    if (!group) {
+      this.warnFallback();
+    }
+    await this.open(req, group?.viewColumn ?? vscode.ViewColumn.Active);
+    return group;
+  }
+
+  /** Resolves with the next editor group that opens, or undefined after a timeout. */
+  private nextNewGroup(): {
+    group: Promise<vscode.TabGroup | undefined>;
+    cancel(): void;
+  } {
     let subscription: vscode.Disposable | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const opened = new Promise<vscode.TabGroup | undefined>((resolve) => {
-      timer = setTimeout(() => resolve(undefined), NEW_GROUP_TIMEOUT_MS);
+    let settle: (group: vscode.TabGroup | undefined) => void = () => {};
+    const group = new Promise<vscode.TabGroup | undefined>((resolve) => {
+      settle = (value) => {
+        clearTimeout(timer);
+        subscription?.dispose();
+        resolve(value);
+      };
+      timer = setTimeout(() => settle(undefined), NEW_GROUP_TIMEOUT_MS);
       subscription = vscode.window.tabGroups.onDidChangeTabGroups((e) => {
         if (e.opened.length > 0) {
-          resolve(e.opened[e.opened.length - 1]);
+          settle(e.opened[e.opened.length - 1]);
         }
       });
     });
-    try {
-      await vscode.commands.executeCommand(NEW_WINDOW_COMMAND);
-      const group = await opened;
-      this.log(
-        `new window: ${group ? `column ${group.viewColumn}` : "no group event (timeout)"} after ${Date.now() - start}ms`,
-      );
-      return group;
-    } catch (error) {
-      this.log(`new window failed: ${String(error)}`);
-      return undefined;
-    } finally {
-      clearTimeout(timer);
-      subscription?.dispose();
-    }
+    return { group, cancel: () => settle(undefined) };
   }
 
   private warnFallback(): void {

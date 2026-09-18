@@ -8,6 +8,7 @@ Opens Source Control diffs in a floating window instead of a tab, like WebStorm.
 - `Ctrl+Alt+D` (macOS: `⌃⌥D`) → pick a changed file → Enter.
 - The window is reused: the next file replaces the current one.
 - `Esc` closes the window (after closing find, suggestions, selection, etc.).
+- macOS: the window reopens with the size and position it had when you last closed it with `Esc` (no permissions needed).
 
 ## Build and install
 

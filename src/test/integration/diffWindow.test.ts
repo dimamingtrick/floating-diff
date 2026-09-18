@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { DiffWindow, tabMatches } from '../../diffWindow';
 import type { OpenRequest } from '../../openRequest';
+import { Bounds, MacWindowBoundsReader, WindowSizeMemory } from '../../windowBounds';
 
 async function waitFor(condition: () => boolean, what: string, timeoutMs = 5000): Promise<void> {
 	const start = Date.now();
@@ -70,16 +71,16 @@ describe('DiffWindow', () => {
 		assert.ok(tabMatches(group.tabs[0], second));
 	});
 
-	function recordingMemory() {
+	function recordingMemory(saved?: Bounds) {
 		const calls: string[] = [];
 		return {
 			calls,
-			remember: async (title: string) => { calls.push(`remember ${title}`); },
-			restore: async (title: string) => { calls.push(`restore ${title}`); },
+			savedBounds: () => { calls.push('savedBounds'); return saved; },
+			remember: async () => { calls.push('remember'); },
 		};
 	}
 
-	it('restores the remembered size once, when it opens a new window', async () => {
+	it('asks for the remembered size only when it opens a new window', async () => {
 		const memory = recordingMemory();
 		win.dispose();
 		win = new DiffWindow({ sizeMemory: memory });
@@ -87,10 +88,10 @@ describe('DiffWindow', () => {
 		await win.show(diff('a.txt'));
 		await win.show(diff('b.txt'));
 
-		assert.deepStrictEqual(memory.calls, ['restore a.txt (Working Tree)']);
+		assert.deepStrictEqual(memory.calls, ['savedBounds']);
 	});
 
-	it('remembers the size before closing the focused window', async () => {
+	it('remembers the size before closing the window', async () => {
 		const memory = recordingMemory();
 		win.dispose();
 		win = new DiffWindow({ sizeMemory: memory });
@@ -99,7 +100,47 @@ describe('DiffWindow', () => {
 
 		await win.close();
 
-		assert.deepStrictEqual(memory.calls, ['restore a.txt (Working Tree)', 'remember a.txt (Working Tree)']);
+		assert.deepStrictEqual(memory.calls, ['savedBounds', 'remember']);
+	});
+
+	const macOnly = process.platform === 'darwin' ? it : it.skip;
+	const near = (actual: number, expected: number) => Math.abs(actual - expected) <= 2;
+
+	macOnly('opens the new window with the remembered size (real window)', async () => {
+		const wanted: Bounds = { x: 140, y: 120, width: 900, height: 640 };
+		win.dispose();
+		win = new DiffWindow({ sizeMemory: { savedBounds: () => wanted, remember: async () => { } } });
+		const reader = new MacWindowBoundsReader(process.ppid);
+		try {
+			await win.show(diff('a.txt'));
+
+			let actual: Bounds | undefined;
+			for (let attempt = 0; attempt < 40 && !(actual && near(actual.width, 900)); attempt++) {
+				actual = await reader.read();
+				await new Promise(resolve => setTimeout(resolve, 50));
+			}
+			assert.ok(actual && near(actual.width, 900) && near(actual.height, 640), `window bounds: ${JSON.stringify(actual)}`);
+		} finally {
+			reader.dispose();
+		}
+	});
+
+	macOnly('remembers the real size of the window when it closes', async () => {
+		let saved: Bounds | undefined;
+		const reader = new MacWindowBoundsReader(process.ppid);
+		const memory = new WindowSizeMemory(reader, { get: () => saved, set: async b => { saved = b; } }, e => { throw e; });
+		win.dispose();
+		win = new DiffWindow({ sizeMemory: memory });
+		try {
+			await win.show(diff('a.txt'));
+			await waitFor(() => vscode.window.tabGroups.all.length === groupsBefore + 1, 'new group');
+
+			await win.close();
+
+			assert.ok(saved && near(saved.width, 1024) && near(saved.height, 768), `saved bounds: ${JSON.stringify(saved)}`);
+		} finally {
+			reader.dispose();
+		}
 	});
 
 	it('reports focus while its diff is the active editor', async () => {

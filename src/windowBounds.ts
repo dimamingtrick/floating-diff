@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { spawn } from 'child_process';
 
 export interface Bounds {
 	readonly x: number;
@@ -7,19 +7,18 @@ export interface Bounds {
 	readonly height: number;
 }
 
-/** Reads and moves the frontmost window, but only when its title contains `title`. */
-export interface WindowBoundsDriver {
-	read(title: string): Promise<Bounds | undefined>;
-	/** Resolves to false when the window never showed up with a matching title. */
-	apply(bounds: Bounds, title: string): Promise<boolean>;
-}
-
 export interface BoundsStore {
 	get(): Bounds | undefined;
 	set(bounds: Bounds): Thenable<void>;
 }
 
-export type ScriptRunner = (script: string) => Promise<string>;
+/** Reads the bounds of the frontmost window of this VS Code instance. */
+export interface WindowBoundsReader {
+	read(): Promise<Bounds | undefined>;
+	/** Starts the reader ahead of the first read, so that read stays fast. */
+	warmUp(): void;
+	dispose(): void;
+}
 
 const MIN_SIZE = 200;
 
@@ -35,106 +34,163 @@ export function parseBounds(output: string): Bounds | undefined {
 	return { x, y, width, height };
 }
 
-function quote(text: string): string {
-	return `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+/**
+ * JXA helper: for every "<pid>" line on stdin, prints the bounds of that
+ * process's frontmost on-screen window as "x,y,width,height" (or an empty
+ * line). CoreGraphics window bounds need no macOS permissions, unlike UI
+ * scripting. Exits when stdin closes, i.e. when the extension host goes away.
+ */
+const HELPER_SCRIPT = String.raw`
+ObjC.import('Foundation');
+ObjC.import('CoreGraphics');
+ObjC.import('stdlib');
+function frontmost(pid) {
+	const onScreenWithoutDesktop = 1 | 16;
+	const list = ObjC.castRefToObject($.CGWindowListCopyWindowInfo(onScreenWithoutDesktop, 0));
+	for (let i = 0; i < Number(list.count); i++) {
+		const w = list.objectAtIndex(i);
+		if (ObjC.unwrap(w.objectForKey('kCGWindowOwnerPID')) !== pid || ObjC.unwrap(w.objectForKey('kCGWindowLayer')) !== 0) {
+			continue;
+		}
+		const b = ObjC.deepUnwrap(w.objectForKey('kCGWindowBounds'));
+		if (b.Width >= ${MIN_SIZE} && b.Height >= ${MIN_SIZE}) {
+			return [b.X, b.Y, b.Width, b.Height].join(',');
+		}
+	}
+	return '';
+}
+function run() {
+	const input = $.NSFileHandle.fileHandleWithStandardInput;
+	const output = $.NSFileHandle.fileHandleWithStandardOutput;
+	for (;;) {
+		const data = input.availableData;
+		if (Number(data.length) === 0) {
+			$.exit(0);
+		}
+		const text = ObjC.unwrap($.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding));
+		for (const line of text.split('\n')) {
+			const pid = parseInt(line, 10);
+			if (!isNaN(pid)) {
+				output.writeData($(frontmost(pid) + '\n').dataUsingEncoding($.NSUTF8StringEncoding));
+			}
+		}
+	}
+}`;
+
+/** The part of a child process the reader uses; replaceable in tests. */
+export interface HelperProcess {
+	readonly stdin: NodeJS.WritableStream;
+	readonly stdout: NodeJS.ReadableStream;
+	on(event: 'exit', listener: (code: number | null) => void): unknown;
+	kill(): boolean;
 }
 
-export function readScript(title: string): string {
-	return [
-		'tell application "System Events"',
-		'set w to window 1 of (first process whose frontmost is true)',
-		`if name of w does not contain ${quote(title)} then return ""`,
-		'set {x, y} to position of w',
-		'set {wd, ht} to size of w',
-		'return (x as text) & "," & (y as text) & "," & (wd as text) & "," & (ht as text)',
-		'end tell',
-	].join('\n');
+function spawnHelper(): HelperProcess {
+	return spawn('osascript', ['-l', 'JavaScript', '-e', HELPER_SCRIPT], { stdio: ['pipe', 'pipe', 'ignore'] });
 }
 
-export function applyScript(bounds: Bounds, title: string): string {
-	const round = (n: number) => Math.round(n);
-	return [
-		'tell application "System Events"',
-		'set w to window 1 of (first process whose frontmost is true)',
-		`if name of w does not contain ${quote(title)} then return "miss"`,
-		`set position of w to {${round(bounds.x)}, ${round(bounds.y)}}`,
-		`set size of w to {${round(bounds.width)}, ${round(bounds.height)}}`,
-		'return "ok"',
-		'end tell',
-	].join('\n');
+interface PendingRead {
+	settled: boolean;
+	resolve(line: string): void;
 }
 
-/** macOS denies UI scripting until the app gets Accessibility (and Automation) permission. */
-export function isPermissionError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return /-1719|-1743|-25211|assistive access|not authori[sz]ed/i.test(message);
-}
+/** Reads window bounds through a long-lived osascript helper: ~1 ms per read. */
+export class MacWindowBoundsReader implements WindowBoundsReader {
+	private helper: HelperProcess | undefined;
+	private buffer = '';
+	private readonly pending: PendingRead[] = [];
+	private readonly spawn: () => HelperProcess;
+	private readonly timeoutMs: number;
 
-export function runOsascript(script: string): Promise<string> {
-	const args = script.split('\n').flatMap(line => ['-e', line]);
-	return new Promise((resolve, reject) => {
-		execFile('osascript', args, { timeout: 3000 }, (error, stdout, stderr) => {
-			if (error) {
-				reject(new Error(stderr.trim() || error.message));
-			} else {
-				resolve(stdout);
+	constructor(private readonly pid: number, options: { spawn?: () => HelperProcess; timeoutMs?: number } = {}) {
+		this.spawn = options.spawn ?? spawnHelper;
+		this.timeoutMs = options.timeoutMs ?? 300;
+	}
+
+	warmUp(): void {
+		this.ensureHelper();
+	}
+
+	read(): Promise<Bounds | undefined> {
+		const helper = this.ensureHelper();
+		return new Promise(resolve => {
+			const read: PendingRead = {
+				settled: false,
+				resolve: line => {
+					read.settled = true;
+					clearTimeout(timer);
+					resolve(parseBounds(line));
+				},
+			};
+			const timer = setTimeout(() => {
+				read.settled = true;
+				resolve(undefined);
+			}, this.timeoutMs);
+			this.pending.push(read);
+			helper.stdin.write(`${this.pid}\n`);
+		});
+	}
+
+	dispose(): void {
+		this.helper?.kill();
+		this.helper = undefined;
+	}
+
+	private ensureHelper(): HelperProcess {
+		if (this.helper) {
+			return this.helper;
+		}
+		const helper = this.spawn();
+		this.helper = helper;
+		this.buffer = '';
+		helper.stdout.on('data', (chunk: Buffer | string) => this.onData(String(chunk)));
+		helper.on('exit', () => {
+			if (this.helper === helper) {
+				this.helper = undefined;
+			}
+			// Every request sent to this helper is lost: answer them with "no window".
+			for (const read of this.pending.splice(0)) {
+				if (!read.settled) {
+					read.resolve('');
+				}
 			}
 		});
-	});
-}
-
-/** Window bounds through macOS System Events (AppleScript UI scripting). */
-export class MacWindowBounds implements WindowBoundsDriver {
-	private readonly attempts: number;
-	private readonly delayMs: number;
-
-	constructor(private readonly run: ScriptRunner = runOsascript, options: { attempts?: number; delayMs?: number } = {}) {
-		this.attempts = options.attempts ?? 10;
-		this.delayMs = options.delayMs ?? 100;
+		return helper;
 	}
 
-	async read(title: string): Promise<Bounds | undefined> {
-		return parseBounds(await this.run(readScript(title)));
-	}
-
-	async apply(bounds: Bounds, title: string): Promise<boolean> {
-		// The new window gets its title only after the diff has rendered.
-		for (let attempt = 0; attempt < this.attempts; attempt++) {
-			if ((await this.run(applyScript(bounds, title))).trim() === 'ok') {
-				return true;
+	private onData(chunk: string): void {
+		this.buffer += chunk;
+		let newline: number;
+		while ((newline = this.buffer.indexOf('\n')) >= 0) {
+			const line = this.buffer.slice(0, newline);
+			this.buffer = this.buffer.slice(newline + 1);
+			// Answers arrive in request order; a timed-out read still consumes its answer.
+			const read = this.pending.shift();
+			if (read && !read.settled) {
+				read.resolve(line);
 			}
-			await new Promise(resolve => setTimeout(resolve, this.delayMs));
 		}
-		return false;
 	}
 }
 
 /** Remembers the floating window size across windows and workspaces. */
 export class WindowSizeMemory {
 	constructor(
-		private readonly driver: WindowBoundsDriver,
+		private readonly reader: WindowBoundsReader,
 		private readonly store: BoundsStore,
 		private readonly onError: (error: unknown) => void,
 	) { }
 
-	async remember(title: string): Promise<void> {
+	savedBounds(): Bounds | undefined {
+		return this.store.get();
+	}
+
+	async remember(): Promise<void> {
 		try {
-			const bounds = await this.driver.read(title);
+			const bounds = await this.reader.read();
 			if (bounds) {
 				await this.store.set(bounds);
 			}
-		} catch (error) {
-			this.onError(error);
-		}
-	}
-
-	async restore(title: string): Promise<void> {
-		const bounds = this.store.get();
-		if (!bounds) {
-			return;
-		}
-		try {
-			await this.driver.apply(bounds, title);
 		} catch (error) {
 			this.onError(error);
 		}

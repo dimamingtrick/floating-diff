@@ -1,7 +1,7 @@
 import * as assert from 'assert';
-import {
-	applyScript, Bounds, BoundsStore, isPermissionError, MacWindowBounds, parseBounds, readScript, WindowBoundsDriver, WindowSizeMemory,
-} from '../../windowBounds';
+import { EventEmitter } from 'events';
+import { PassThrough } from 'stream';
+import { Bounds, BoundsStore, HelperProcess, MacWindowBoundsReader, parseBounds, WindowBoundsReader, WindowSizeMemory } from '../../windowBounds';
 
 describe('parseBounds', () => {
 	it('parses "x,y,width,height"', () => {
@@ -12,7 +12,7 @@ describe('parseBounds', () => {
 		assert.deepStrictEqual(parseBounds('-1440, 25, 1440, 875'), { x: -1440, y: 25, width: 1440, height: 875 });
 	});
 
-	it('rejects empty output (window title did not match)', () => {
+	it('rejects an empty answer (no window found)', () => {
 		assert.strictEqual(parseBounds(''), undefined);
 	});
 
@@ -26,58 +26,102 @@ describe('parseBounds', () => {
 	});
 });
 
-describe('scripts', () => {
-	it('reads the frontmost window only when its title matches', () => {
-		const script = readScript('say "hi" \\ bye');
-		assert.ok(script.includes('first process whose frontmost is true'));
-		assert.ok(script.includes('does not contain "say \\"hi\\" \\\\ bye"'), script);
+/** A stand-in for the osascript helper: records requests, answers on demand. */
+class FakeHelper extends EventEmitter implements HelperProcess {
+	readonly stdin = new PassThrough();
+	readonly stdout = new PassThrough();
+	readonly requests: string[] = [];
+	killed = false;
+
+	constructor() {
+		super();
+		this.stdin.on('data', chunk => this.requests.push(...String(chunk).split('\n').filter(Boolean)));
+	}
+
+	answer(line: string): void {
+		this.stdout.write(`${line}\n`);
+	}
+
+	kill(): boolean {
+		this.killed = true;
+		this.emit('exit', null);
+		return true;
+	}
+}
+
+async function until(condition: () => boolean): Promise<void> {
+	while (!condition()) {
+		await new Promise(resolve => setImmediate(resolve));
+	}
+}
+
+describe('MacWindowBoundsReader', () => {
+	it('asks the helper for the frontmost window of the pid and parses the answer', async () => {
+		const helper = new FakeHelper();
+		const reader = new MacWindowBoundsReader(4242, { spawn: () => helper });
+
+		const result = reader.read();
+		await until(() => helper.requests.length === 1);
+		helper.answer('10,25,1440,875');
+
+		assert.deepStrictEqual(await result, { x: 10, y: 25, width: 1440, height: 875 });
+		assert.deepStrictEqual(helper.requests, ['4242']);
 	});
 
-	it('applies rounded bounds to the frontmost window only when its title matches', () => {
-		const script = applyScript({ x: 10.4, y: -20.6, width: 1200.2, height: 799.5 }, 'a.ts (Working Tree)');
-		assert.ok(script.includes('does not contain "a.ts (Working Tree)"'));
-		assert.ok(script.includes('set position of w to {10, -21}'), script);
-		assert.ok(script.includes('set size of w to {1200, 800}'), script);
-	});
-});
+	it('resolves undefined when no window was found', async () => {
+		const helper = new FakeHelper();
+		const reader = new MacWindowBoundsReader(1, { spawn: () => helper });
 
-describe('isPermissionError', () => {
-	it('detects missing Accessibility or Automation permissions', () => {
-		assert.ok(isPermissionError(new Error('System Events got an error: osascript is not allowed assistive access. (-1719)')));
-		assert.ok(isPermissionError(new Error('Not authorized to send Apple events to System Events. (-1743)')));
-		assert.ok(isPermissionError(new Error('execution error: (-25211)')));
+		const result = reader.read();
+		await until(() => helper.requests.length === 1);
+		helper.answer('');
+
+		assert.strictEqual(await result, undefined);
 	});
 
-	it('ignores other errors', () => {
-		assert.ok(!isPermissionError(new Error('Command failed: osascript timed out')));
-		assert.ok(!isPermissionError('oops'));
-	});
-});
+	it('resolves undefined when the helper does not answer in time', async () => {
+		const helper = new FakeHelper();
+		const reader = new MacWindowBoundsReader(1, { spawn: () => helper, timeoutMs: 5 });
 
-describe('MacWindowBounds', () => {
-	it('reads bounds through osascript', async () => {
-		const scripts: string[] = [];
-		const driver = new MacWindowBounds(async script => { scripts.push(script); return '10,20,1200,800\n'; });
-
-		assert.deepStrictEqual(await driver.read('a.ts'), { x: 10, y: 20, width: 1200, height: 800 });
-		assert.deepStrictEqual(scripts, [readScript('a.ts')]);
+		assert.strictEqual(await reader.read(), undefined);
 	});
 
-	it('retries applying until the window title matches', async () => {
-		const replies = ['miss\n', 'miss\n', 'ok\n'];
-		let calls = 0;
-		const driver = new MacWindowBounds(async () => replies[calls++], { attempts: 5, delayMs: 1 });
+	it('does not hand a late answer to the next read', async () => {
+		const helper = new FakeHelper();
+		const reader = new MacWindowBoundsReader(1, { spawn: () => helper, timeoutMs: 5 });
+		await reader.read(); // times out
+		helper.answer('1,1,999,999'); // late answer to the first read
 
-		assert.strictEqual(await driver.apply({ x: 0, y: 0, width: 800, height: 600 }, 'a.ts'), true);
-		assert.strictEqual(calls, 3);
+		const second = reader.read();
+		await until(() => helper.requests.length === 2);
+		helper.answer('2,2,800,600');
+
+		assert.deepStrictEqual(await second, { x: 2, y: 2, width: 800, height: 600 });
 	});
 
-	it('gives up applying after the configured attempts', async () => {
-		let calls = 0;
-		const driver = new MacWindowBounds(async () => { calls++; return 'miss\n'; }, { attempts: 3, delayMs: 1 });
+	it('starts a new helper after the previous one exited', async () => {
+		const helpers = [new FakeHelper(), new FakeHelper()];
+		let spawned = 0;
+		const reader = new MacWindowBoundsReader(1, { spawn: () => helpers[spawned++] });
 
-		assert.strictEqual(await driver.apply({ x: 0, y: 0, width: 800, height: 600 }, 'a.ts'), false);
-		assert.strictEqual(calls, 3);
+		reader.warmUp();
+		helpers[0].emit('exit', 1);
+		const result = reader.read();
+		await until(() => helpers[1].requests.length === 1);
+		helpers[1].answer('0,0,800,600');
+
+		assert.deepStrictEqual(await result, { x: 0, y: 0, width: 800, height: 600 });
+		assert.strictEqual(spawned, 2);
+	});
+
+	it('kills the helper on dispose', () => {
+		const helper = new FakeHelper();
+		const reader = new MacWindowBoundsReader(1, { spawn: () => helper });
+		reader.warmUp();
+
+		reader.dispose();
+
+		assert.strictEqual(helper.killed, true);
 	});
 });
 
@@ -94,48 +138,32 @@ describe('WindowSizeMemory', () => {
 		return store;
 	}
 
-	function fakeDriver(read: Bounds | undefined, applied: Array<[Bounds, string]> = []): WindowBoundsDriver {
-		return {
-			read: async () => read,
-			apply: async (b, title) => { applied.push([b, title]); return true; },
-		};
+	function reader(read: () => Promise<Bounds | undefined>): WindowBoundsReader {
+		return { read, warmUp: () => { }, dispose: () => { } };
 	}
 
-	it('remembers the bounds of the window', async () => {
+	it('remembers the bounds of the frontmost window', async () => {
 		const store = memoryStore();
-		await new WindowSizeMemory(fakeDriver(bounds), store, noErrors).remember('a.ts');
+		await new WindowSizeMemory(reader(async () => bounds), store, noErrors).remember();
 		assert.deepStrictEqual(store.value, bounds);
 	});
 
 	it('keeps the previous bounds when the window cannot be read', async () => {
 		const store = memoryStore(bounds);
-		await new WindowSizeMemory(fakeDriver(undefined), store, noErrors).remember('a.ts');
+		await new WindowSizeMemory(reader(async () => undefined), store, noErrors).remember();
 		assert.deepStrictEqual(store.value, bounds);
 	});
 
-	it('restores the remembered bounds', async () => {
-		const applied: Array<[Bounds, string]> = [];
-		await new WindowSizeMemory(fakeDriver(undefined, applied), memoryStore(bounds), noErrors).restore('a.ts');
-		assert.deepStrictEqual(applied, [[bounds, 'a.ts']]);
+	it('exposes the remembered bounds for the next window', () => {
+		assert.deepStrictEqual(new WindowSizeMemory(reader(async () => undefined), memoryStore(bounds), noErrors).savedBounds(), bounds);
 	});
 
-	it('does nothing on restore when no bounds were remembered', async () => {
-		const applied: Array<[Bounds, string]> = [];
-		await new WindowSizeMemory(fakeDriver(undefined, applied), memoryStore(), noErrors).restore('a.ts');
-		assert.deepStrictEqual(applied, []);
-	});
-
-	it('reports driver errors instead of throwing', async () => {
+	it('reports reader errors instead of throwing', async () => {
 		const errors: unknown[] = [];
-		const failing: WindowBoundsDriver = {
-			read: async () => { throw new Error('boom'); },
-			apply: async () => { throw new Error('boom'); },
-		};
-		const memory = new WindowSizeMemory(failing, memoryStore(bounds), e => errors.push(e));
+		const memory = new WindowSizeMemory(reader(async () => { throw new Error('boom'); }), memoryStore(), e => errors.push(e));
 
-		await memory.remember('a.ts');
-		await memory.restore('a.ts');
+		await memory.remember();
 
-		assert.strictEqual(errors.length, 2);
+		assert.strictEqual(errors.length, 1);
 	});
 });

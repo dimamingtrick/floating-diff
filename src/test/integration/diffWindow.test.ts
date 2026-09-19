@@ -22,7 +22,7 @@ describe('DiffWindow', () => {
 	}
 
 	before(() => {
-		dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gitstorm-'));
+		dir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-convenient-'));
 	});
 
 	beforeEach(() => {

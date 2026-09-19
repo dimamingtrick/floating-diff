@@ -51,7 +51,7 @@ export function SearchInput(props: {
 	);
 }
 
-const fontFamily = (id: string) => `gitstorm-icons-${id.replace(/[^\w-]/g, '_')}`;
+const fontFamily = (id: string) => `git-convenient-icons-${id.replace(/[^\w-]/g, '_')}`;
 
 /** The @font-face rules of the file icon theme. */
 export function IconFonts({ fonts }: { fonts: readonly FileIconFont[] }) {

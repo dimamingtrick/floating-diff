@@ -65,7 +65,7 @@ export class ExplorerPanel implements vscode.Disposable {
 		private readonly key: string,
 	) {
 		const title = `${branch} — browse`;
-		this.panel = vscode.window.createWebviewPanel('gitStorm.explorer', title, diffWindow.editorColumn(), {
+		this.panel = vscode.window.createWebviewPanel('gitConvenient.explorer', title, diffWindow.editorColumn(), {
 			...webviewOptions(extensionUri),
 			retainContextWhenHidden: true,
 		});
@@ -192,7 +192,7 @@ export class ExplorerPanel implements vscode.Disposable {
 	private async diffWithMine(path: string): Promise<void> {
 		const hasCopy = await this.hasWorkingCopy(path);
 		if (!hasCopy) {
-			vscode.window.setStatusBarMessage(`GitStorm: ${path} is not in your working tree`, 4000);
+			vscode.window.setStatusBarMessage(`Git Convenient: ${path} is not in your working tree`, 4000);
 		}
 		await this.diffWindow.show(this.ctx.diffs.withWorkingTree(path, this.branch, hasCopy));
 	}
@@ -200,7 +200,7 @@ export class ExplorerPanel implements vscode.Disposable {
 	private async copyToWorkingTree(path: string): Promise<void> {
 		if (await this.hasWorkingCopy(path)) {
 			if (await this.ctx.data.sameAsWorkingFile(this.branch, path)) {
-				void vscode.window.showInformationMessage(`GitStorm: your ${path} is already the same as on ${this.branch}.`);
+				void vscode.window.showInformationMessage(`Git Convenient: your ${path} is already the same as on ${this.branch}.`);
 				return;
 			}
 			const answer = await vscode.window.showWarningMessage(
@@ -213,7 +213,7 @@ export class ExplorerPanel implements vscode.Disposable {
 			}
 		}
 		if (await runWithProgress(`Copying ${path} from ${this.branch}`, () => this.ctx.data.restoreFile(this.branch, path))) {
-			vscode.window.setStatusBarMessage(`GitStorm: copied ${path} from ${this.branch}`, 4000);
+			vscode.window.setStatusBarMessage(`Git Convenient: copied ${path} from ${this.branch}`, 4000);
 			await this.ctx.repository.status();
 		}
 	}
@@ -223,7 +223,7 @@ export class ExplorerPanel implements vscode.Disposable {
 		if (req) {
 			await this.diffWindow.show(req);
 		} else {
-			void vscode.window.showInformationMessage(`GitStorm: ${this.branch} changes nothing compared to ${this.current}.`);
+			void vscode.window.showInformationMessage(`Git Convenient: ${this.branch} changes nothing compared to ${this.current}.`);
 		}
 	}
 
@@ -234,14 +234,14 @@ export class ExplorerPanel implements vscode.Disposable {
 		if (req) {
 			await this.diffWindow.show(req);
 		} else {
-			void vscode.window.showInformationMessage('GitStorm: this commit changes no files.');
+			void vscode.window.showInformationMessage('Git Convenient: this commit changes no files.');
 		}
 	}
 
 	private async cherryPick(): Promise<void> {
 		const candidates = this.commits.filter(commit => commit.ahead);
 		if (candidates.length === 0) {
-			void vscode.window.showInformationMessage(`GitStorm: ${this.branch} has no commits that ${this.current} doesn't have.`);
+			void vscode.window.showInformationMessage(`Git Convenient: ${this.branch} has no commits that ${this.current} doesn't have.`);
 			return;
 		}
 		const picks = await vscode.window.showQuickPick(
@@ -269,7 +269,7 @@ export class ExplorerPanel implements vscode.Disposable {
 		const list = await this.ctx.branches.list();
 		const branch = list.branches.find(b => b.name === this.branch);
 		if (!branch) {
-			void vscode.window.showErrorMessage(`GitStorm: ${this.branch} is not a branch.`);
+			void vscode.window.showErrorMessage(`Git Convenient: ${this.branch} is not a branch.`);
 			return;
 		}
 		await runWithProgress(`Checking out ${this.branch}`, () => this.ctx.branches.checkout(branch, list.branches));

@@ -12,7 +12,7 @@ describe('Branch explorer', function () {
 	let panel: ExplorerPanel;
 
 	before(async () => {
-		repo = createTestRepo('gitstorm-explorer-');
+		repo = createTestRepo('git-convenient-explorer-');
 		repo.write('a.txt', 'a\n');
 		repo.git('add', '.');
 		repo.git('commit', '-qm', 'init');
@@ -25,8 +25,8 @@ describe('Branch explorer', function () {
 		repo.git('checkout', '-q', 'main');
 		await openTestRepo(repo.dir, 'a.txt');
 
-		panel = (await vscode.commands.executeCommand<ExplorerPanel>('gitStorm.browseBranch', 'feature'))!;
-		assert.ok(panel, 'gitStorm.browseBranch returns its panel');
+		panel = (await vscode.commands.executeCommand<ExplorerPanel>('gitConvenient.browseBranch', 'feature'))!;
+		assert.ok(panel, 'gitConvenient.browseBranch returns its panel');
 	});
 
 	after(async () => {
@@ -63,7 +63,7 @@ describe('Branch explorer', function () {
 		const groups = vscode.window.tabGroups.all.length;
 		await panel.handle({ type: 'diffWithMine', path: 'a.txt' });
 		await waitFor(() => allTabs().some(tab => tab.label === 'a.txt (feature ↔ working tree)'), 'the file diff', 10000);
-		await vscode.commands.executeCommand('gitStorm.close');
+		await vscode.commands.executeCommand('gitConvenient.close');
 		await waitFor(() => vscode.window.tabGroups.all.length === groups, 'floating window closed');
 	});
 
@@ -71,7 +71,7 @@ describe('Branch explorer', function () {
 		const groups = vscode.window.tabGroups.all.length;
 		await panel.handle({ type: 'openFullDiff' });
 		await waitFor(() => allTabs().some(tab => tab.label.startsWith('main ↔ feature')), 'the branch diff', 10000);
-		await vscode.commands.executeCommand('gitStorm.close');
+		await vscode.commands.executeCommand('gitConvenient.close');
 		await waitFor(() => vscode.window.tabGroups.all.length === groups, 'floating window closed');
 	});
 });

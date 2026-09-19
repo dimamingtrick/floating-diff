@@ -17,13 +17,13 @@ type FileAction = ChangeAction | 'ignore' | 'reveal';
 type ViewMode = SidebarState['viewMode'];
 
 const SYNC_TITLES: Record<SyncAction, string> = { fetch: 'Fetching', pull: 'Pulling', push: 'Pushing' };
-const VIEW_MODE_KEY = 'gitStorm.changesViewMode';
+const VIEW_MODE_KEY = 'gitConvenient.changesViewMode';
 
 /** What the webview's context menu passes to commands: the element's `data-vscode-context`. */
 interface MenuContext {
 	readonly webviewSection?: string;
 	readonly root?: string;
-	readonly gitStormGroup?: ChangeGroupKind;
+	readonly gitConvenientGroup?: ChangeGroupKind;
 	/** A file's path, or a folder's for `changeFolder`. */
 	readonly path?: string;
 }
@@ -31,18 +31,18 @@ interface MenuContext {
 const sameRef = (a: ChangeRef, b: ChangeRef) => a.root === b.root && a.group === b.group && a.path === b.path;
 
 /**
- * The GitStorm view in the Activity Bar: for every repository, like Source
+ * The Git Convenient view in the Activity Bar: for every repository, like Source
  * Control, its current branch, uncommitted files (as a list or a tree) and
  * commit box. Commit, fetch, pull, push and the actions on files run Git's
  * own commands, so they ask and behave like Source Control.
  */
 export class Sidebar implements vscode.WebviewViewProvider, vscode.Disposable {
-	static readonly viewId = 'gitStorm.sidebar';
+	static readonly viewId = 'gitConvenient.sidebar';
 	/**
 	 * A view nobody sees (`when: false`) that carries the Activity Bar badge:
 	 * a tree view has its badge from startup, a webview view only once opened.
 	 */
-	static readonly badgeViewId = 'gitStorm.badge';
+	static readonly badgeViewId = 'gitConvenient.badge';
 
 	/** Set while the view is open. */
 	channel: WebviewChannel<SidebarFromWebview, SidebarToWebview> | undefined;
@@ -74,26 +74,26 @@ export class Sidebar implements vscode.WebviewViewProvider, vscode.Disposable {
 		});
 		const onFile = (action: FileAction) => (context?: MenuContext) => this.fromMenu(action, context);
 		const onGroup = (action: GroupAction) => (context?: MenuContext) =>
-			context?.root && context.gitStormGroup ? this.runGroup(action, context.root, context.gitStormGroup).catch(reportError) : undefined;
+			context?.root && context.gitConvenientGroup ? this.runGroup(action, context.root, context.gitConvenientGroup).catch(reportError) : undefined;
 		const command = vscode.commands.registerCommand;
 		this.subscriptions.push(
 			this.badgeView,
 			this.icons,
 			vscode.window.registerWebviewViewProvider(Sidebar.viewId, this, { webviewOptions: { retainContextWhenHidden: true } }),
-			command('gitStorm.changes.open', onFile('open')),
-			command('gitStorm.changes.openFile', onFile('openFile')),
-			command('gitStorm.changes.stage', onFile('stage')),
-			command('gitStorm.changes.unstage', onFile('unstage')),
-			command('gitStorm.changes.discard', onFile('discard')),
-			command('gitStorm.changes.ignore', onFile('ignore')),
-			command('gitStorm.changes.reveal', onFile('reveal')),
-			command('gitStorm.changes.viewGroup', onGroup('view')),
-			command('gitStorm.changes.stageAll', onGroup('stageAll')),
-			command('gitStorm.changes.unstageAll', onGroup('unstageAll')),
-			command('gitStorm.changes.discardAll', onGroup('discardAll')),
-			command('gitStorm.changes.refresh', () => Promise.all([...this.repositories.values()].map(({ repository }) => repository.status()))),
-			command('gitStorm.viewAsTree', () => this.setViewMode('tree')),
-			command('gitStorm.viewAsList', () => this.setViewMode('list')),
+			command('gitConvenient.changes.open', onFile('open')),
+			command('gitConvenient.changes.openFile', onFile('openFile')),
+			command('gitConvenient.changes.stage', onFile('stage')),
+			command('gitConvenient.changes.unstage', onFile('unstage')),
+			command('gitConvenient.changes.discard', onFile('discard')),
+			command('gitConvenient.changes.ignore', onFile('ignore')),
+			command('gitConvenient.changes.reveal', onFile('reveal')),
+			command('gitConvenient.changes.viewGroup', onGroup('view')),
+			command('gitConvenient.changes.stageAll', onGroup('stageAll')),
+			command('gitConvenient.changes.unstageAll', onGroup('unstageAll')),
+			command('gitConvenient.changes.discardAll', onGroup('discardAll')),
+			command('gitConvenient.changes.refresh', () => Promise.all([...this.repositories.values()].map(({ repository }) => repository.status()))),
+			command('gitConvenient.viewAsTree', () => this.setViewMode('tree')),
+			command('gitConvenient.viewAsList', () => this.setViewMode('list')),
 			api.onDidOpenRepository(repository => this.add(repository)),
 			api.onDidCloseRepository(repository => this.remove(repository)),
 			// The focused repository counts for the badge with scm.countBadge = focused.
@@ -111,7 +111,7 @@ export class Sidebar implements vscode.WebviewViewProvider, vscode.Disposable {
 				}
 			}),
 		);
-		void vscode.commands.executeCommand('setContext', 'gitStorm.scmResources', scm !== undefined);
+		void vscode.commands.executeCommand('setContext', 'gitConvenient.scmResources', scm !== undefined);
 		void vscode.commands.executeCommand('setContext', VIEW_MODE_KEY, this.viewMode);
 		api.repositories.forEach(repository => this.add(repository));
 		this.updateBadge();
@@ -125,7 +125,7 @@ export class Sidebar implements vscode.WebviewViewProvider, vscode.Disposable {
 	resolveWebviewView(view: vscode.WebviewView): void {
 		this.view = view;
 		this.allowIconFiles();
-		view.webview.html = webviewHtml(view.webview, this.extensionUri, 'sidebar', 'GitStorm');
+		view.webview.html = webviewHtml(view.webview, this.extensionUri, 'sidebar', 'Git Convenient');
 		const channel = new WebviewChannel<SidebarFromWebview, SidebarToWebview>(view.webview, message => this.handle(message), reportError);
 		this.channel?.dispose();
 		this.channel = channel;
@@ -168,7 +168,7 @@ export class Sidebar implements vscode.WebviewViewProvider, vscode.Disposable {
 			case 'sync':
 				return this.sync(message.action, message.root);
 			case 'switchBranch':
-				await vscode.commands.executeCommand('gitStorm.branches', undefined, message.root);
+				await vscode.commands.executeCommand('gitConvenient.branches', undefined, message.root);
 				return;
 		}
 	}
@@ -199,7 +199,7 @@ export class Sidebar implements vscode.WebviewViewProvider, vscode.Disposable {
 	 * part of it, like in Source Control; on a folder, to its files.
 	 */
 	private fromMenu(action: FileAction, context: MenuContext | undefined): Promise<void> | undefined {
-		const { root, gitStormGroup: group, path: target } = context ?? {};
+		const { root, gitConvenientGroup: group, path: target } = context ?? {};
 		const repository = root ? this.repositories.get(root)?.repository : undefined;
 		if (!root || !group || target === undefined || !repository) {
 			return undefined;

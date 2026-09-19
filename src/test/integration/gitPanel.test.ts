@@ -14,7 +14,7 @@ describe('Git panel', function () {
 	let panel: GitPanel;
 
 	before(async () => {
-		repo = createTestRepo('gitstorm-git-panel-');
+		repo = createTestRepo('git-convenient-git-panel-');
 		repo.write('a.txt', 'a\n');
 		repo.git('add', '.');
 		repo.git('commit', '-qm', 'init');
@@ -31,7 +31,7 @@ describe('Git panel', function () {
 		repo.git('checkout', '-q', 'main');
 		repo.write('a.txt', 'a2\n');
 		repo.git('commit', '-qam', 'main change');
-		second = createTestRepo('gitstorm-git-panel-other-');
+		second = createTestRepo('git-convenient-git-panel-other-');
 		second.write('b.txt', 'b\n');
 		second.git('add', '.');
 		second.git('commit', '-qm', 'init');
@@ -40,8 +40,8 @@ describe('Git panel', function () {
 		await vscode.commands.executeCommand('git.openRepository', second.dir);
 		await waitFor(() => api.getRepository(vscode.Uri.file(second.dir)) !== null, 'second repository open', 15000);
 
-		panel = (await vscode.commands.executeCommand<GitPanel>('gitStorm.log'))!;
-		assert.ok(panel, 'gitStorm.log returns the Git panel');
+		panel = (await vscode.commands.executeCommand<GitPanel>('gitConvenient.log'))!;
+		assert.ok(panel, 'gitConvenient.log returns the Git panel');
 	});
 
 	after(async () => {
@@ -70,13 +70,13 @@ describe('Git panel', function () {
 	});
 
 	it('opens on a branch from the Git Log command', async () => {
-		await vscode.commands.executeCommand('gitStorm.log', 'feature/two');
+		await vscode.commands.executeCommand('gitConvenient.log', 'feature/two');
 		await waitFor(() => panel.session?.filters.branch === 'feature/two', 'the branch filter', 10000);
 	});
 
 	it('shows the history of a file with File History, on the branch picked on the left', async () => {
 		// The Git Log command left feature/two picked: a.txt changed there only in init.
-		await vscode.commands.executeCommand('gitStorm.fileHistory', vscode.Uri.file(path.join(repo.dir, 'a.txt')));
+		await vscode.commands.executeCommand('gitConvenient.fileHistory', vscode.Uri.file(path.join(repo.dir, 'a.txt')));
 		await waitFor(() => panel.session?.filters.paths?.[0] === 'a.txt', 'the file filter', 10000);
 		assert.deepStrictEqual(panel.session?.filters, { branch: 'feature/two', paths: ['a.txt'] });
 		await waitForValue(() => panel.channel!.rendered('log', 'latest'), 1, 'init only', 10000);
@@ -93,11 +93,11 @@ describe('Git panel', function () {
 	});
 
 	it("runs WebStorm's commit actions from the context menu", async () => {
-		const menu = (hash: string) => ({ webview: 'gitStorm.branchesPanel', webviewSection: 'commit', hash });
-		await vscode.commands.executeCommand('gitStorm.commit.cherryPick', menu(repo.git('rev-parse', 'feature/two').trim()));
+		const menu = (hash: string) => ({ webview: 'gitConvenient.branchesPanel', webviewSection: 'commit', hash });
+		await vscode.commands.executeCommand('gitConvenient.commit.cherryPick', menu(repo.git('rev-parse', 'feature/two').trim()));
 		await waitFor(() => repo.git('log', '-1', '--format=%s').trim() === 'two', 'two cherry-picked onto main', 10000);
 
-		await vscode.commands.executeCommand('gitStorm.commit.merge', menu(repo.git('rev-parse', 'feature/one').trim()));
+		await vscode.commands.executeCommand('gitConvenient.commit.merge', menu(repo.git('rev-parse', 'feature/one').trim()));
 		await waitFor(() => repo.git('log', '-1', '--format=%P').trim().split(' ').length === 2, 'a merge commit on main', 10000);
 		assert.ok(repo.git('ls-files').includes('src/one.txt'), 'feature/one merged');
 	});
@@ -109,7 +109,7 @@ describe('Git panel', function () {
 	});
 
 	it('closes like the terminal when toggled', async () => {
-		await vscode.commands.executeCommand('gitStorm.toggleBranches');
+		await vscode.commands.executeCommand('gitConvenient.toggleBranches');
 		await waitFor(() => !panel.visible, 'the panel is hidden', 10000);
 	});
 });

@@ -1,4 +1,4 @@
-/* GitStorm webviews. Design tokens map to VS Code theme colors, so every theme works. */
+/* Git Convenient webviews. Design tokens map to VS Code theme colors, so every theme works. */
 :root {
 	--chrome: var(--vscode-sideBar-background, #181818);
 	--editor: var(--vscode-editor-background, #1f1f1f);

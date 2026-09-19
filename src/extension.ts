@@ -14,17 +14,17 @@ import { Sidebar } from './sidebar/sidebar';
 import { GitInternals, ScmOpenRedirect } from './scmRedirect';
 import { Bounds, MacWindowBoundsReader, WindowSizeMemory } from './windowBounds';
 
-const BOUNDS_KEY = 'gitStorm.windowBounds';
-const OPEN_SCM_RESOURCE = 'gitStorm.openScmResource';
+const BOUNDS_KEY = 'gitConvenient.windowBounds';
+const OPEN_SCM_RESOURCE = 'gitConvenient.openScmResource';
 
 /** What `activate` returns; the integration tests reach the sidebar through it. */
-export interface GitStormExports {
+export interface GitConvenientExports {
 	readonly sidebar?: Sidebar;
 	readonly git?: GitPanel;
 }
 
-export async function activate(context: vscode.ExtensionContext): Promise<GitStormExports> {
-	const log = vscode.window.createOutputChannel('GitStorm', { log: true });
+export async function activate(context: vscode.ExtensionContext): Promise<GitConvenientExports> {
+	const log = vscode.window.createOutputChannel('Git Convenient', { log: true });
 	context.subscriptions.push(log);
 	const diffWindow = new DiffWindow({
 		sizeMemory: createSizeMemory(context, log),
@@ -50,26 +50,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitSto
 				await vscode.commands.executeCommand(command.command, ...(command.arguments ?? []));
 			}
 		}),
-		vscode.commands.registerCommand('gitStorm.pickChange', () => pickChange(diffWindow)),
-		vscode.commands.registerCommand('gitStorm.close', () => diffWindow.close()),
+		vscode.commands.registerCommand('gitConvenient.pickChange', () => pickChange(diffWindow)),
+		vscode.commands.registerCommand('gitConvenient.close', () => diffWindow.close()),
 		// Menus pass their own arguments (e.g. a URI): only strings are a branch and a repository root.
-		vscode.commands.registerCommand('gitStorm.branches', async (branch?: unknown, root?: unknown) => {
+		vscode.commands.registerCommand('gitConvenient.branches', async (branch?: unknown, root?: unknown) => {
 			const ctx = await repoContext(root);
 			if (ctx) {
 				await branchesPopup(ctx).show(typeof branch === 'string' ? branch : undefined);
 			}
 		}),
 		// The log in the Git panel at the bottom, like WebStorm; in an editor tab on request.
-		vscode.commands.registerCommand('gitStorm.log', async (branch?: unknown, root?: unknown) => {
+		vscode.commands.registerCommand('gitConvenient.log', async (branch?: unknown, root?: unknown) => {
 			await gitPanel?.show({ branch: typeof branch === 'string' ? branch : undefined, root: typeof root === 'string' ? root : undefined });
 			return gitPanel;
 		}),
 		// The button in an editor's title: the history of its file in the Git panel, on the branch picked there.
-		vscode.commands.registerCommand('gitStorm.fileHistory', async (resource?: unknown) => {
+		vscode.commands.registerCommand('gitConvenient.fileHistory', async (resource?: unknown) => {
 			const file = fileOf(resource instanceof vscode.Uri ? resource : vscode.window.activeTextEditor?.document.uri);
 			const repository = file && api?.getRepository(file);
 			if (!file || !repository) {
-				void vscode.window.showInformationMessage('GitStorm: open a file of a Git repository to see its history.');
+				void vscode.window.showInformationMessage('Git Convenient: open a file of a Git repository to see its history.');
 				return undefined;
 			}
 			const relative = path.relative(repository.rootUri.fsPath, file.fsPath).split(path.sep).join('/');
@@ -78,22 +78,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitSto
 		}),
 		// The commit context menu of the logs: the webview says which one, the row which commit.
 		...(['openDiff', 'copyHash', 'cherryPick', 'checkout', 'merge', 'rebase', 'revert', 'newBranch'] as const).map(name =>
-			vscode.commands.registerCommand(`gitStorm.commit.${name}`, (context?: { webview?: string; hash?: string }) => {
-				const session = context?.webview === 'gitStorm.log' ? LogPanel.currentSession : gitPanel?.session;
+			vscode.commands.registerCommand(`gitConvenient.commit.${name}`, (context?: { webview?: string; hash?: string }) => {
+				const session = context?.webview === 'gitConvenient.log' ? LogPanel.currentSession : gitPanel?.session;
 				if (!session || !context?.hash) {
 					return undefined;
 				}
 				return session.handle(name === 'openDiff' ? { type: 'openCommit', hash: context.hash } : { type: 'action', action: name, hash: context.hash });
 			}),
 		),
-		vscode.commands.registerCommand('gitStorm.logInEditor', async (branch?: unknown, root?: unknown) => {
+		vscode.commands.registerCommand('gitConvenient.logInEditor', async (branch?: unknown, root?: unknown) => {
 			const ctx = await repoContext(root);
 			return ctx && LogPanel.show(context.extensionUri, ctx, diffWindow, typeof branch === 'string' ? { branch } : undefined);
 		}),
-		vscode.commands.registerCommand('gitStorm.fetch', (root?: unknown) =>
-			sidebar ? sidebar.sync('fetch', typeof root === 'string' ? root : undefined) : vscode.window.showInformationMessage('GitStorm: no Git repository is open.'),
+		vscode.commands.registerCommand('gitConvenient.fetch', (root?: unknown) =>
+			sidebar ? sidebar.sync('fetch', typeof root === 'string' ? root : undefined) : vscode.window.showInformationMessage('Git Convenient: no Git repository is open.'),
 		),
-		vscode.commands.registerCommand('gitStorm.browseBranch', async (branch?: unknown, root?: unknown) => {
+		vscode.commands.registerCommand('gitConvenient.browseBranch', async (branch?: unknown, root?: unknown) => {
 			const ctx = await repoContext(root);
 			const name = ctx && (typeof branch === 'string' ? branch : await pickBranchToBrowse(ctx));
 			return ctx && name ? ExplorerPanel.show(context.extensionUri, ctx, diffWindow, name) : undefined;
@@ -105,7 +105,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitSto
 		const repository = api && (await pickRepository(api, typeof root === 'string' ? root : undefined));
 		if (!api || !repository) {
 			if (!api || api.repositories.length === 0) {
-				void vscode.window.showInformationMessage('GitStorm: no Git repository is open.');
+				void vscode.window.showInformationMessage('Git Convenient: no Git repository is open.');
 			}
 			return undefined;
 		}
@@ -113,7 +113,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitSto
 	}
 
 	function branchesPopup(ctx: RepoContext): BranchesPopup {
-		return new BranchesPopup(ctx.branches, diffWindow, branch => vscode.commands.executeCommand('gitStorm.browseBranch', branch.name));
+		return new BranchesPopup(ctx.branches, diffWindow, branch => vscode.commands.executeCommand('gitConvenient.browseBranch', branch.name));
 	}
 	api = await getGitApi();
 	const scm = await gitInternals();
@@ -158,11 +158,11 @@ async function gitInternals(): Promise<GitInternals | undefined> {
 
 /** `Git Log` on the right of the status bar while a repository is open. */
 function setUpLogLink(context: vscode.ExtensionContext, api: API): void {
-	const logLink = vscode.window.createStatusBarItem('gitStorm.log', vscode.StatusBarAlignment.Right, 100);
-	logLink.name = 'GitStorm: Git Log';
+	const logLink = vscode.window.createStatusBarItem('gitConvenient.log', vscode.StatusBarAlignment.Right, 100);
+	logLink.name = 'Git Convenient: Git Log';
 	logLink.text = '$(history) Git Log';
 	logLink.tooltip = 'Open the Git Log';
-	logLink.command = 'gitStorm.log';
+	logLink.command = 'gitConvenient.log';
 	const update = () => {
 		if (api.repositories.length > 0) {
 			logLink.show();
@@ -197,12 +197,12 @@ function createSizeMemory(context: vscode.ExtensionContext, log: vscode.LogOutpu
 /** Makes clicks on Source Control files behave like the window icon (see ScmOpenRedirect). */
 function setUpScmRedirect(context: vscode.ExtensionContext, log: vscode.LogOutputChannel, model: GitInternals, api: API): ScmOpenRedirect {
 	const redirect = new ScmOpenRedirect(model, { commandId: OPEN_SCM_RESOURCE, log: message => log.info(message) });
-	const enabled = () => vscode.workspace.getConfiguration('gitStorm').get<boolean>('openFromSourceControl', true);
+	const enabled = () => vscode.workspace.getConfiguration('gitConvenient').get<boolean>('openFromSourceControl', true);
 	// Git lists its files a moment after startup: retry on every change until installed.
 	const apply = () => void redirect.setEnabled(enabled());
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('gitStorm.openFromSourceControl')) {
+			if (e.affectsConfiguration('gitConvenient.openFromSourceControl')) {
 				apply();
 			}
 		}),

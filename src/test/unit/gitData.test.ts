@@ -16,7 +16,7 @@ describe('GitData', function () {
 	const commit = (message: string, ...extra: string[]) => git(...extra, 'commit', '-qm', message);
 
 	before(() => {
-		repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'gitstorm-data-')));
+		repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-convenient-data-')));
 		git('init', '-q', '-b', 'main');
 		git('config', 'user.email', 'dima@example.com');
 		git('config', 'user.name', 'Dima');

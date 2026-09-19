@@ -6,7 +6,7 @@ import { RevisionDiffs } from './data/diffRequests';
 import { GitData } from './data/gitData';
 import type { API, Repository, RepositoryOperations } from './git';
 
-/** Everything the GitStorm screens need about one repository. */
+/** Everything the Git Convenient screens need about one repository. */
 export interface RepoContext {
 	readonly repository: Repository & RepositoryOperations;
 	readonly git: GitRunner;

@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { execFileSync } from 'child_process';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { GitStormExports } from '../../extension';
+import type { GitConvenientExports } from '../../extension';
 import type { API, GitExtension, Repository, RepositoryOperations } from '../../git';
 import type { ChangeRef, SidebarRepo } from '../../shared/protocol';
 import type { Sidebar } from '../../sidebar/sidebar';
@@ -14,7 +14,7 @@ type Repo = Repository & RepositoryOperations;
 // Two repositories, like a project with a nested one: `first` (with a bare origin,
 // a branch and a tag) has a.ts edited and new.txt untracked; `second` has b.ts
 // edited and none of its files is ever opened.
-describe('GitStorm sidebar', function () {
+describe('Git Convenient sidebar', function () {
 	this.timeout(60000);
 	let first: TestRepo;
 	let second: TestRepo;
@@ -27,7 +27,7 @@ describe('GitStorm sidebar', function () {
 	const staged = () => repository.state.indexChanges.map(change => path.basename(change.uri.fsPath)).sort();
 
 	before(async () => {
-		first = createTestRepo('gitstorm-sidebar-');
+		first = createTestRepo('git-convenient-sidebar-');
 		const origin = path.join(path.dirname(first.dir), 'origin.git');
 		execFileSync('git', ['init', '-q', '--bare', origin]);
 		first.write('a.ts', 'export const a = 1;\n');
@@ -37,7 +37,7 @@ describe('GitStorm sidebar', function () {
 		first.git('tag', 'v1');
 		first.git('remote', 'add', 'origin', origin);
 		first.git('push', '-q', '-u', 'origin', 'main');
-		second = createTestRepo('gitstorm-sidebar-other-');
+		second = createTestRepo('git-convenient-sidebar-other-');
 		second.write('b.ts', 'export const b = 1;\n');
 		second.git('add', '.');
 		second.git('commit', '-qm', 'init');
@@ -53,10 +53,10 @@ describe('GitStorm sidebar', function () {
 		second.write('b.ts', 'export const b = 2;\n');
 		await Promise.all([repository.status(), other.status()]);
 
-		sidebar = vscode.extensions.getExtension<GitStormExports>('DimaShraho.gitstorm')!.exports.sidebar!;
+		sidebar = vscode.extensions.getExtension<GitConvenientExports>('DimaShraho.git-convenient')!.exports.sidebar!;
 		assert.ok(sidebar, 'the extension exposes its sidebar');
-		await vscode.commands.executeCommand('workbench.view.extension.gitStorm');
-		await waitFor(() => sidebar.channel !== undefined, 'the GitStorm view', 10000);
+		await vscode.commands.executeCommand('workbench.view.extension.gitConvenient');
+		await waitFor(() => sidebar.channel !== undefined, 'the Git Convenient view', 10000);
 	});
 
 	after(async () => {
@@ -100,10 +100,10 @@ describe('GitStorm sidebar', function () {
 
 	it('runs a context menu command on all selected files, and group commands', async () => {
 		await sidebar.handle({ type: 'select', items: [ref(first, 'workingTree', 'a.ts'), ref(first, 'workingTree', 'new.txt')] });
-		await vscode.commands.executeCommand('gitStorm.changes.stage', { webviewSection: 'change', root: first.dir, gitStormGroup: 'workingTree', path: 'a.ts' });
+		await vscode.commands.executeCommand('gitConvenient.changes.stage', { webviewSection: 'change', root: first.dir, gitConvenientGroup: 'workingTree', path: 'a.ts' });
 		await waitFor(() => staged().join() === 'a.ts,new.txt', 'the selection staged');
 
-		await vscode.commands.executeCommand('gitStorm.changes.unstageAll', { webviewSection: 'changeGroup', root: first.dir, gitStormGroup: 'index' });
+		await vscode.commands.executeCommand('gitConvenient.changes.unstageAll', { webviewSection: 'changeGroup', root: first.dir, gitConvenientGroup: 'index' });
 		await waitFor(() => staged().length === 0, 'everything unstaged');
 		assert.strictEqual(other.state.indexChanges.length, 0, 'the other repository is untouched');
 	});
@@ -112,7 +112,7 @@ describe('GitStorm sidebar', function () {
 		const windows = vscode.window.tabGroups.all.length;
 		await sidebar.handle({ type: 'change', action: 'open', items: [ref(second, 'workingTree', 'b.ts')] });
 		await waitFor(() => allTabs().some(tab => tab.label.startsWith('b.ts')), 'a diff of b.ts', 10000);
-		await vscode.commands.executeCommand('gitStorm.close');
+		await vscode.commands.executeCommand('gitConvenient.close');
 		await waitFor(() => vscode.window.tabGroups.all.length === windows, 'floating window closed');
 	});
 
@@ -135,9 +135,9 @@ describe('GitStorm sidebar', function () {
 	});
 
 	it('switches between a list and a tree of files, like Source Control', async () => {
-		await vscode.commands.executeCommand('gitStorm.viewAsTree');
+		await vscode.commands.executeCommand('gitConvenient.viewAsTree');
 		await waitFor(() => sidebar.snapshot()?.viewMode === 'tree', 'tree view');
-		await vscode.commands.executeCommand('gitStorm.viewAsList');
+		await vscode.commands.executeCommand('gitConvenient.viewAsList');
 		await waitFor(() => sidebar.snapshot()?.viewMode === 'list', 'list view');
 	});
 
@@ -146,10 +146,10 @@ describe('GitStorm sidebar', function () {
 		await repository.status();
 		await waitFor(() => repoState(first)?.groups.some(group => group.files.some(file => file.path === 'src/deep/c.ts')) === true, 'src/deep/c.ts listed');
 
-		await vscode.commands.executeCommand('gitStorm.changes.stage', { webviewSection: 'changeFolder', root: first.dir, gitStormGroup: 'workingTree', path: 'src' });
+		await vscode.commands.executeCommand('gitConvenient.changes.stage', { webviewSection: 'changeFolder', root: first.dir, gitConvenientGroup: 'workingTree', path: 'src' });
 		await waitFor(() => staged().join() === 'c.ts', 'the folder staged');
 
-		await vscode.commands.executeCommand('gitStorm.changes.unstageAll', { webviewSection: 'changeGroup', root: first.dir, gitStormGroup: 'index' });
+		await vscode.commands.executeCommand('gitConvenient.changes.unstageAll', { webviewSection: 'changeGroup', root: first.dir, gitConvenientGroup: 'index' });
 		await waitFor(() => staged().length === 0, 'unstaged again');
 	});
 });

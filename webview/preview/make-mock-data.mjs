@@ -1,5 +1,5 @@
 // Builds a throwaway repository with branches, merges and tags, reads it with
-// GitStorm's own data code (out/, from `tsc -p .`) and writes mock-data.js for
+// Git Convenient's own data code (out/, from `tsc -p .`) and writes mock-data.js for
 // the preview page. Run: npm run preview
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -15,7 +15,7 @@ const { BranchService } = require(`${out}/branches/branchService.js`);
 const { layoutGraph } = require(`${out}/graph/lanes.js`);
 const { sidebarGroups } = require(`${out}/sidebar/sidebarModel.js`);
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gitstorm-preview-'));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-convenient-preview-'));
 let clock = Date.parse('2026-09-08T09:00:00Z') / 1000;
 const people = { anna: ['Anna Kovalenko', 'anna@example.com'], mark: ['Mark Rivera', 'mark@example.com'], li: ['Li Wei', 'li@example.com'] };
 const git = (...args) => execFileSync('git', args, { cwd: dir, stdio: 'pipe' }).toString();
@@ -171,7 +171,7 @@ for (const file of files) {
 }
 
 const list = await new BranchService({}, run, () => undefined).list();
-// File icons: the Seti theme of the downloaded test VS Code, resolved by GitStorm's own code.
+// File icons: the Seti theme of the downloaded test VS Code, resolved by Git Convenient's own code.
 const { iconIdFor, fontCharacter, languageResolver } = require(`${out}/sidebar/fileIcons.js`);
 const seti = fs.readdirSync(path.join(out, '../.vscode-test')).map(dir => path.join(out, '../.vscode-test', dir, 'Visual Studio Code.app/Contents/Resources/app/extensions/theme-seti/icons')).find(dir => fs.existsSync(dir));
 const theme = seti && JSON.parse(fs.readFileSync(path.join(seti, 'vs-seti-icon-theme.json'), 'utf8'));

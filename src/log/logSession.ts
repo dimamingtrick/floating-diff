@@ -203,7 +203,7 @@ export class LogSession implements vscode.Disposable {
 		if (req) {
 			await this.diffWindow.show(req);
 		} else {
-			void vscode.window.showInformationMessage('GitStorm: this commit changes no files.');
+			void vscode.window.showInformationMessage('Git Convenient: this commit changes no files.');
 		}
 	}
 
@@ -216,7 +216,7 @@ export class LogSession implements vscode.Disposable {
 		switch (action) {
 			case 'copyHash':
 				await vscode.env.clipboard.writeText(hash);
-				vscode.window.setStatusBarMessage(`GitStorm: copied ${short(hash)}`, 2000);
+				vscode.window.setStatusBarMessage(`Git Convenient: copied ${short(hash)}`, 2000);
 				return;
 			case 'cherryPick':
 				await runWithProgress(`Cherry-picking ${short(hash)}`, () => done(() => data.cherryPick(hash)));

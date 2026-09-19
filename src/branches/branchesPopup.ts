@@ -245,7 +245,7 @@ export class BranchesPopup {
 		if (req) {
 			await this.diffWindow.show(req);
 		} else if (loaded) {
-			void vscode.window.showInformationMessage('GitStorm: no differences.');
+			void vscode.window.showInformationMessage('Git Convenient: no differences.');
 		}
 	}
 
@@ -258,6 +258,6 @@ export class BranchesPopup {
 	}
 
 	private withProgress(title: string, task: () => Promise<void>): Thenable<void> {
-		return vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `GitStorm: ${title}` }, task);
+		return vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: `Git Convenient: ${title}` }, task);
 	}
 }

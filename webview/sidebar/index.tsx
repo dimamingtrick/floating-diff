@@ -141,7 +141,7 @@ const folderKey = (repo: SidebarRepo, group: SidebarChangeGroup, folder: string)
 function FileRow({ repo, group, file, depth, showDir, list }: { repo: SidebarRepo; group: SidebarChangeGroup; file: SidebarFile; depth: number; showDir: boolean; list: ListProps }) {
 	const ref: ChangeRef = { root: repo.root, group: group.group, path: file.path };
 	const key = keyOf(ref);
-	const context = { webviewSection: 'change', root: repo.root, gitStormGroup: group.group, path: file.path, preventDefaultContextMenuItems: true };
+	const context = { webviewSection: 'change', root: repo.root, gitConvenientGroup: group.group, path: file.path, preventDefaultContextMenuItems: true };
 	return (
 		<div
 			class={`scm-row scm-file ${list.selected.has(key) ? 'sel' : ''}`}
@@ -187,7 +187,7 @@ function FolderTree({ repo, group, list }: { repo: SidebarRepo; group: SidebarCh
 			const open = !list.isCollapsed(key);
 			const inside = group.files.filter(candidate => candidate.path.startsWith(`${node.path}/`)).map((candidate): ChangeRef => ({ root: repo.root, group: group.group, path: candidate.path }));
 			const icons: FolderIcons | undefined = list.folderIcons[node.name.slice(node.name.lastIndexOf('/') + 1).toLowerCase()] ?? list.folderIcons[''];
-			const context = { webviewSection: 'changeFolder', root: repo.root, gitStormGroup: group.group, path: node.path, preventDefaultContextMenuItems: true };
+			const context = { webviewSection: 'changeFolder', root: repo.root, gitConvenientGroup: group.group, path: node.path, preventDefaultContextMenuItems: true };
 			rows.push(
 				<div key={`${node.path}/`} class="scm-row scm-folder" style={indent(depth)} role="treeitem" aria-expanded={open} title={node.path} data-vscode-context={JSON.stringify(context)} onClick={() => list.toggle(key)}>
 					<Twistie open={open} />
@@ -213,7 +213,7 @@ function ChangeList({ repo, list }: { repo: SidebarRepo; list: ListProps }) {
 			{repo.groups.map(group => {
 				const key = groupKey(repo, group);
 				const open = !list.isCollapsed(key);
-				const context = { webviewSection: 'changeGroup', root: repo.root, gitStormGroup: group.group, preventDefaultContextMenuItems: true };
+				const context = { webviewSection: 'changeGroup', root: repo.root, gitConvenientGroup: group.group, preventDefaultContextMenuItems: true };
 				return (
 					<div key={group.group}>
 						<div class="scm-row scm-group-row" style={indent(0)} role="treeitem" aria-expanded={open} data-vscode-context={JSON.stringify(context)} onClick={() => list.toggle(key)}>

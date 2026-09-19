@@ -6,7 +6,7 @@ import type { Bounds } from "./windowBounds";
 const NEW_WINDOW_COMMAND = "workbench.action.newEmptyEditorWindow";
 /** Internal editor group id meaning "a new floating window" (VS Code's AUX_WINDOW_GROUP). */
 const AUX_WINDOW_GROUP = -3;
-const FOCUSED_CONTEXT_KEY = "gitStorm.diffFocused";
+const FOCUSED_CONTEXT_KEY = "gitConvenient.diffFocused";
 const NEW_GROUP_TIMEOUT_MS = 1000;
 
 type ChangesRequest = Extract<OpenRequest, { kind: "changes" }>;
@@ -340,7 +340,7 @@ export class DiffWindow implements vscode.Disposable {
     }
     this.warnedFallback = true;
     void vscode.window.showWarningMessage(
-      "GitStorm: floating windows are unavailable, opened as a regular tab.",
+      "Git Convenient: floating windows are unavailable, opened as a regular tab.",
     );
   }
 

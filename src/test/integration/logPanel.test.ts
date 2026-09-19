@@ -11,7 +11,7 @@ describe('Git Log', function () {
 	const hash = (rev: string) => repo.git('rev-parse', rev).trim();
 
 	before(async () => {
-		repo = createTestRepo('gitstorm-log-');
+		repo = createTestRepo('git-convenient-log-');
 		repo.write('a.txt', 'a\n');
 		repo.git('add', '.');
 		repo.git('commit', '-qm', 'init');
@@ -27,8 +27,8 @@ describe('Git Log', function () {
 		repo.git('merge', '-q', '--no-ff', '-m', "Merge branch 'feature'", 'feature');
 		await openTestRepo(repo.dir, 'a.txt');
 
-		panel = (await vscode.commands.executeCommand<LogPanel>('gitStorm.logInEditor'))!;
-		assert.ok(panel, 'gitStorm.logInEditor returns its panel');
+		panel = (await vscode.commands.executeCommand<LogPanel>('gitConvenient.logInEditor'))!;
+		assert.ok(panel, 'gitConvenient.logInEditor returns its panel');
 	});
 
 	after(async () => {
@@ -70,7 +70,7 @@ describe('Git Log', function () {
 		const groups = vscode.window.tabGroups.all.length;
 		await panel.handle({ type: 'openCommit', hash: hash('main~1') });
 		await waitFor(() => allTabs().some(tab => tab.label.startsWith(short)), `a tab for ${short}`, 10000);
-		await vscode.commands.executeCommand('gitStorm.close');
+		await vscode.commands.executeCommand('gitConvenient.close');
 		// Later suites count window groups: leave none behind.
 		await waitFor(() => vscode.window.tabGroups.all.length === groups, 'floating window closed');
 	});
@@ -85,11 +85,11 @@ describe('Git Log', function () {
 		const logTab = allTabs().find(tab => tab.label === 'Git Log')!;
 		await vscode.window.tabGroups.close(logTab);
 
-		await vscode.commands.executeCommand('gitStorm.logInEditor');
+		await vscode.commands.executeCommand('gitConvenient.logInEditor');
 
 		await waitFor(() => allTabs().some(tab => tab.label === 'Git Log'), 'Git Log reopened');
 		assert.ok(!floating()!.tabs.some(tab => tab.label === 'Git Log'), 'Git Log is not in the floating window');
-		await vscode.commands.executeCommand('gitStorm.close');
+		await vscode.commands.executeCommand('gitConvenient.close');
 		await waitFor(() => vscode.window.tabGroups.all.length === groups, 'floating window closed');
 	});
 });

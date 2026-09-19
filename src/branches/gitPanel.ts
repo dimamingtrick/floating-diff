@@ -22,14 +22,14 @@ const FAVORITES = new Set(['main', 'master']);
  * `⑂ Branches` in the status bar opens and closes it.
  */
 export class GitPanel implements vscode.WebviewViewProvider, vscode.Disposable {
-	static readonly viewId = 'gitStorm.branchesPanel';
+	static readonly viewId = 'gitConvenient.branchesPanel';
 
 	/** Set while the view is open. */
 	channel: WebviewChannel<GitPanelFromWebview, GitPanelToWebview> | undefined;
 	/** The log the panel shows. */
 	session: LogSession | undefined;
 	private view: vscode.WebviewView | undefined;
-	private readonly item = vscode.window.createStatusBarItem('gitStorm.branches', vscode.StatusBarAlignment.Left, 0.5);
+	private readonly item = vscode.window.createStatusBarItem('gitConvenient.branches', vscode.StatusBarAlignment.Left, 0.5);
 	private readonly icons = new FileIconTheme();
 	private readonly subscriptions: vscode.Disposable[] = [];
 	private readonly listeners = new Map<string, vscode.Disposable>();
@@ -44,15 +44,15 @@ export class GitPanel implements vscode.WebviewViewProvider, vscode.Disposable {
 		private readonly api: API,
 		private readonly diffWindow: DiffWindow,
 	) {
-		this.item.name = 'GitStorm: Branches';
+		this.item.name = 'Git Convenient: Branches';
 		this.item.text = '$(git-branch) Branches';
 		this.item.tooltip = 'Show or hide branches and the log';
-		this.item.command = 'gitStorm.toggleBranches';
+		this.item.command = 'gitConvenient.toggleBranches';
 		this.subscriptions.push(
 			this.item,
 			this.icons,
 			vscode.window.registerWebviewViewProvider(GitPanel.viewId, this, { webviewOptions: { retainContextWhenHidden: true } }),
-			vscode.commands.registerCommand('gitStorm.toggleBranches', () => this.toggle()),
+			vscode.commands.registerCommand('gitConvenient.toggleBranches', () => this.toggle()),
 			// A panel restored at startup opens before Git has found the repositories.
 			api.onDidChangeState(() => this.startSession()),
 			api.onDidOpenRepository(repository => this.watch(repository)),
@@ -143,10 +143,10 @@ export class GitPanel implements vscode.WebviewViewProvider, vscode.Disposable {
 				this.startSession();
 				return;
 			case 'browse':
-				await vscode.commands.executeCommand('gitStorm.browseBranch', message.branch, root);
+				await vscode.commands.executeCommand('gitConvenient.browseBranch', message.branch, root);
 				return;
 			case 'branchActions':
-				await vscode.commands.executeCommand('gitStorm.branches', message.branch, root);
+				await vscode.commands.executeCommand('gitConvenient.branches', message.branch, root);
 				return;
 			default:
 				await this.session?.handle(message);

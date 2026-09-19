@@ -79,7 +79,7 @@ export interface Repository {
 	readonly state: RepositoryState;
 }
 
-/** Repository operations GitStorm uses; all part of Git API version 1 (1.105+). */
+/** Repository operations Git Convenient uses; all part of Git API version 1 (1.105+). */
 export interface RepositoryOperations {
 	/** The commit message box of Source Control. */
 	readonly inputBox: { value: string };

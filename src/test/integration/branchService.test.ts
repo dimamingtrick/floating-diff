@@ -27,7 +27,7 @@ describe('BranchService', function () {
 	}
 
 	before(async () => {
-		const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'gitstorm-branches-')));
+		const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-convenient-branches-')));
 		const origin = path.join(root, 'origin.git');
 		work = path.join(root, 'work');
 		git(root, 'init', '-q', '--bare', origin);

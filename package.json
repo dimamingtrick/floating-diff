@@ -1,7 +1,7 @@
 {
-  "name": "gitstorm",
-  "displayName": "GitStorm",
-  "description": "WebStorm-style Git: diffs in a floating window, branches popup, Git Log with a graph, browse branches without checkout, GitStorm panel.",
+  "name": "git-convenient",
+  "displayName": "Git Convenient",
+  "description": "WebStorm-style Git: diffs in a floating window, branches popup, Git Log with a graph, browse branches without checkout, Git Convenient panel.",
   "version": "0.4.0",
   "publisher": "DimaShraho",
   "license": "MIT",
@@ -44,218 +44,218 @@
   "contributes": {
     "commands": [
       {
-        "command": "gitStorm.openScmResource",
+        "command": "gitConvenient.openScmResource",
         "title": "Open Diff in Floating Window",
         "icon": "$(multiple-windows)"
       },
       {
-        "command": "gitStorm.pickChange",
+        "command": "gitConvenient.pickChange",
         "title": "Open Change…",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       },
       {
-        "command": "gitStorm.close",
+        "command": "gitConvenient.close",
         "title": "Close Diff Window",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       },
       {
-        "command": "gitStorm.branches",
+        "command": "gitConvenient.branches",
         "title": "Branches…",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(git-branch)"
       },
       {
-        "command": "gitStorm.log",
+        "command": "gitConvenient.log",
         "title": "Git Log",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(history)"
       },
       {
-        "command": "gitStorm.fileHistory",
+        "command": "gitConvenient.fileHistory",
         "title": "File History",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(history)"
       },
       {
-        "command": "gitStorm.browseBranch",
+        "command": "gitConvenient.browseBranch",
         "title": "Browse Branch…",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(eye)"
       },
       {
-        "command": "gitStorm.fetch",
+        "command": "gitConvenient.fetch",
         "title": "Fetch",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(repo-fetch)"
       },
       {
-        "command": "gitStorm.changes.open",
+        "command": "gitConvenient.changes.open",
         "title": "Open Changes",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(compare-changes)"
       },
       {
-        "command": "gitStorm.changes.openFile",
+        "command": "gitConvenient.changes.openFile",
         "title": "Open File",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(go-to-file)"
       },
       {
-        "command": "gitStorm.changes.stage",
+        "command": "gitConvenient.changes.stage",
         "title": "Stage Changes",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(add)"
       },
       {
-        "command": "gitStorm.changes.unstage",
+        "command": "gitConvenient.changes.unstage",
         "title": "Unstage Changes",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(remove)"
       },
       {
-        "command": "gitStorm.changes.discard",
+        "command": "gitConvenient.changes.discard",
         "title": "Discard Changes",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(discard)"
       },
       {
-        "command": "gitStorm.changes.ignore",
+        "command": "gitConvenient.changes.ignore",
         "title": "Add to .gitignore",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       },
       {
-        "command": "gitStorm.changes.reveal",
+        "command": "gitConvenient.changes.reveal",
         "title": "Reveal in Explorer View",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       },
       {
-        "command": "gitStorm.changes.viewGroup",
+        "command": "gitConvenient.changes.viewGroup",
         "title": "View Changes",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(diff-multiple)"
       },
       {
-        "command": "gitStorm.changes.stageAll",
+        "command": "gitConvenient.changes.stageAll",
         "title": "Stage All Changes",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(add)"
       },
       {
-        "command": "gitStorm.changes.unstageAll",
+        "command": "gitConvenient.changes.unstageAll",
         "title": "Unstage All Changes",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(remove)"
       },
       {
-        "command": "gitStorm.changes.discardAll",
+        "command": "gitConvenient.changes.discardAll",
         "title": "Discard All Changes",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(discard)"
       },
       {
-        "command": "gitStorm.changes.refresh",
+        "command": "gitConvenient.changes.refresh",
         "title": "Refresh",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(refresh)"
       },
       {
-        "command": "gitStorm.toggleBranches",
+        "command": "gitConvenient.toggleBranches",
         "title": "Show or Hide Branches",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(git-branch)"
       },
       {
-        "command": "gitStorm.viewAsTree",
+        "command": "gitConvenient.viewAsTree",
         "title": "View as Tree",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(list-tree)"
       },
       {
-        "command": "gitStorm.viewAsList",
+        "command": "gitConvenient.viewAsList",
         "title": "View as List",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(list-flat)"
       },
       {
-        "command": "gitStorm.logInEditor",
+        "command": "gitConvenient.logInEditor",
         "title": "Git Log in Editor",
-        "category": "GitStorm",
+        "category": "Git Convenient",
         "icon": "$(history)"
       },
       {
-        "command": "gitStorm.commit.copyHash",
+        "command": "gitConvenient.commit.copyHash",
         "title": "Copy Revision Number",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       },
       {
-        "command": "gitStorm.commit.openDiff",
+        "command": "gitConvenient.commit.openDiff",
         "title": "Open Diff",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       },
       {
-        "command": "gitStorm.commit.cherryPick",
+        "command": "gitConvenient.commit.cherryPick",
         "title": "Cherry-Pick",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       },
       {
-        "command": "gitStorm.commit.checkout",
+        "command": "gitConvenient.commit.checkout",
         "title": "Checkout Revision",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       },
       {
-        "command": "gitStorm.commit.merge",
+        "command": "gitConvenient.commit.merge",
         "title": "Merge into Current Branch",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       },
       {
-        "command": "gitStorm.commit.rebase",
+        "command": "gitConvenient.commit.rebase",
         "title": "Rebase Current Branch onto This Commit",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       },
       {
-        "command": "gitStorm.commit.revert",
+        "command": "gitConvenient.commit.revert",
         "title": "Revert Commit",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       },
       {
-        "command": "gitStorm.commit.newBranch",
+        "command": "gitConvenient.commit.newBranch",
         "title": "New Branch…",
-        "category": "GitStorm"
+        "category": "Git Convenient"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "gitStorm",
-          "title": "GitStorm",
-          "icon": "media/gitstorm.svg"
+          "id": "gitConvenient",
+          "title": "Git Convenient",
+          "icon": "media/git-convenient.svg"
         }
       ],
       "panel": [
         {
-          "id": "gitStormBranches",
+          "id": "gitConvenientBranches",
           "title": "Branches",
-          "icon": "media/gitstorm.svg"
+          "icon": "media/git-convenient.svg"
         }
       ]
     },
     "views": {
-      "gitStorm": [
+      "gitConvenient": [
         {
           "type": "webview",
-          "id": "gitStorm.sidebar",
-          "name": "GitStorm"
+          "id": "gitConvenient.sidebar",
+          "name": "Git Convenient"
         },
         {
-          "id": "gitStorm.badge",
-          "name": "GitStorm",
+          "id": "gitConvenient.badge",
+          "name": "Git Convenient",
           "when": "false"
         }
       ],
-      "gitStormBranches": [
+      "gitConvenientBranches": [
         {
           "type": "webview",
-          "id": "gitStorm.branchesPanel",
+          "id": "gitConvenient.branchesPanel",
           "name": "Log"
         }
       ]
@@ -263,292 +263,292 @@
     "menus": {
       "editor/title": [
         {
-          "command": "gitStorm.fileHistory",
+          "command": "gitConvenient.fileHistory",
           "when": "resourceScheme =~ /^(file|git)$/ && gitOpenRepositoryCount != 0",
           "group": "navigation"
         }
       ],
       "commandPalette": [
         {
-          "command": "gitStorm.openScmResource",
+          "command": "gitConvenient.openScmResource",
           "when": "false"
         },
         {
-          "command": "gitStorm.fileHistory",
+          "command": "gitConvenient.fileHistory",
           "when": "gitOpenRepositoryCount != 0"
         },
         {
-          "command": "gitStorm.close",
+          "command": "gitConvenient.close",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.open",
+          "command": "gitConvenient.changes.open",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.openFile",
+          "command": "gitConvenient.changes.openFile",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.stage",
+          "command": "gitConvenient.changes.stage",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.unstage",
+          "command": "gitConvenient.changes.unstage",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.discard",
+          "command": "gitConvenient.changes.discard",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.ignore",
+          "command": "gitConvenient.changes.ignore",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.reveal",
+          "command": "gitConvenient.changes.reveal",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.viewGroup",
+          "command": "gitConvenient.changes.viewGroup",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.stageAll",
+          "command": "gitConvenient.changes.stageAll",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.unstageAll",
+          "command": "gitConvenient.changes.unstageAll",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.discardAll",
+          "command": "gitConvenient.changes.discardAll",
           "when": "false"
         },
         {
-          "command": "gitStorm.changes.refresh",
+          "command": "gitConvenient.changes.refresh",
           "when": "false"
         },
         {
-          "command": "gitStorm.commit.copyHash",
+          "command": "gitConvenient.commit.copyHash",
           "when": "false"
         },
         {
-          "command": "gitStorm.commit.openDiff",
+          "command": "gitConvenient.commit.openDiff",
           "when": "false"
         },
         {
-          "command": "gitStorm.commit.cherryPick",
+          "command": "gitConvenient.commit.cherryPick",
           "when": "false"
         },
         {
-          "command": "gitStorm.commit.checkout",
+          "command": "gitConvenient.commit.checkout",
           "when": "false"
         },
         {
-          "command": "gitStorm.commit.merge",
+          "command": "gitConvenient.commit.merge",
           "when": "false"
         },
         {
-          "command": "gitStorm.commit.rebase",
+          "command": "gitConvenient.commit.rebase",
           "when": "false"
         },
         {
-          "command": "gitStorm.commit.revert",
+          "command": "gitConvenient.commit.revert",
           "when": "false"
         },
         {
-          "command": "gitStorm.commit.newBranch",
+          "command": "gitConvenient.commit.newBranch",
           "when": "false"
         }
       ],
       "scm/resourceState/context": [
         {
-          "command": "gitStorm.openScmResource",
+          "command": "gitConvenient.openScmResource",
           "group": "inline",
           "when": "scmProvider == git && scmResourceGroup =~ /^(index|workingTree|untracked)$/"
         }
       ],
       "view/title": [
         {
-          "command": "gitStorm.fetch",
-          "when": "view == gitStorm.sidebar",
+          "command": "gitConvenient.fetch",
+          "when": "view == gitConvenient.sidebar",
           "group": "navigation@1"
         },
         {
-          "command": "gitStorm.log",
-          "when": "view == gitStorm.sidebar",
+          "command": "gitConvenient.log",
+          "when": "view == gitConvenient.sidebar",
           "group": "navigation@2"
         },
         {
-          "command": "gitStorm.viewAsTree",
-          "when": "view == gitStorm.sidebar && gitStorm.changesViewMode == list",
+          "command": "gitConvenient.viewAsTree",
+          "when": "view == gitConvenient.sidebar && gitConvenient.changesViewMode == list",
           "group": "navigation@3"
         },
         {
-          "command": "gitStorm.viewAsList",
-          "when": "view == gitStorm.sidebar && gitStorm.changesViewMode == tree",
+          "command": "gitConvenient.viewAsList",
+          "when": "view == gitConvenient.sidebar && gitConvenient.changesViewMode == tree",
           "group": "navigation@3"
         },
         {
-          "command": "gitStorm.changes.refresh",
-          "when": "view == gitStorm.sidebar",
+          "command": "gitConvenient.changes.refresh",
+          "when": "view == gitConvenient.sidebar",
           "group": "1_refresh"
         },
         {
-          "command": "gitStorm.fetch",
-          "when": "view == gitStorm.branchesPanel",
+          "command": "gitConvenient.fetch",
+          "when": "view == gitConvenient.branchesPanel",
           "group": "navigation@1"
         },
         {
-          "command": "gitStorm.log",
-          "when": "view == gitStorm.branchesPanel",
+          "command": "gitConvenient.log",
+          "when": "view == gitConvenient.branchesPanel",
           "group": "navigation@2"
         },
         {
-          "command": "gitStorm.viewAsTree",
-          "when": "view == gitStorm.sidebar && gitStorm.changesViewMode == list",
+          "command": "gitConvenient.viewAsTree",
+          "when": "view == gitConvenient.sidebar && gitConvenient.changesViewMode == list",
           "group": "2_view@1"
         },
         {
-          "command": "gitStorm.viewAsList",
-          "when": "view == gitStorm.sidebar && gitStorm.changesViewMode == tree",
+          "command": "gitConvenient.viewAsList",
+          "when": "view == gitConvenient.sidebar && gitConvenient.changesViewMode == tree",
           "group": "2_view@1"
         }
       ],
       "webview/context": [
         {
-          "command": "gitStorm.changes.open",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'change' && gitStormGroup =~ /^(merge|index|workingTree|untracked)$/",
+          "command": "gitConvenient.changes.open",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'change' && gitConvenientGroup =~ /^(merge|index|workingTree|untracked)$/",
           "group": "navigation@1"
         },
         {
-          "command": "gitStorm.changes.openFile",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'change' && gitStormGroup =~ /^(merge|index|workingTree|untracked)$/",
+          "command": "gitConvenient.changes.openFile",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'change' && gitConvenientGroup =~ /^(merge|index|workingTree|untracked)$/",
           "group": "navigation@2"
         },
         {
-          "command": "gitStorm.changes.stage",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'change' && gitStormGroup =~ /^(merge|workingTree|untracked)$/",
+          "command": "gitConvenient.changes.stage",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'change' && gitConvenientGroup =~ /^(merge|workingTree|untracked)$/",
           "group": "1_modification@1"
         },
         {
-          "command": "gitStorm.changes.unstage",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'change' && gitStormGroup =~ /^(index)$/",
+          "command": "gitConvenient.changes.unstage",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'change' && gitConvenientGroup =~ /^(index)$/",
           "group": "1_modification@1"
         },
         {
-          "command": "gitStorm.changes.discard",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'change' && gitStormGroup =~ /^(workingTree|untracked)$/",
+          "command": "gitConvenient.changes.discard",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'change' && gitConvenientGroup =~ /^(workingTree|untracked)$/",
           "group": "1_modification@2"
         },
         {
-          "command": "gitStorm.changes.ignore",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'change' && gitStormGroup =~ /^(workingTree|untracked)$/ && gitStorm.scmResources",
+          "command": "gitConvenient.changes.ignore",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'change' && gitConvenientGroup =~ /^(workingTree|untracked)$/ && gitConvenient.scmResources",
           "group": "1_modification@3"
         },
         {
-          "command": "gitStorm.changes.reveal",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'change' && gitStormGroup =~ /^(merge|index|workingTree|untracked)$/",
+          "command": "gitConvenient.changes.reveal",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'change' && gitConvenientGroup =~ /^(merge|index|workingTree|untracked)$/",
           "group": "2_view@1"
         },
         {
-          "command": "gitStorm.changes.viewGroup",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'changeGroup' && gitStormGroup =~ /^(index|workingTree|untracked)$/",
+          "command": "gitConvenient.changes.viewGroup",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'changeGroup' && gitConvenientGroup =~ /^(index|workingTree|untracked)$/",
           "group": "navigation@1"
         },
         {
-          "command": "gitStorm.changes.stageAll",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'changeGroup' && gitStormGroup =~ /^(merge|workingTree|untracked)$/",
+          "command": "gitConvenient.changes.stageAll",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'changeGroup' && gitConvenientGroup =~ /^(merge|workingTree|untracked)$/",
           "group": "1_modification@1"
         },
         {
-          "command": "gitStorm.changes.unstageAll",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'changeGroup' && gitStormGroup =~ /^(index)$/",
+          "command": "gitConvenient.changes.unstageAll",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'changeGroup' && gitConvenientGroup =~ /^(index)$/",
           "group": "1_modification@1"
         },
         {
-          "command": "gitStorm.changes.discardAll",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'changeGroup' && gitStormGroup =~ /^(workingTree|untracked)$/",
+          "command": "gitConvenient.changes.discardAll",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'changeGroup' && gitConvenientGroup =~ /^(workingTree|untracked)$/",
           "group": "1_modification@2"
         },
         {
-          "command": "gitStorm.changes.stage",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'changeFolder' && gitStormGroup =~ /^(merge|workingTree|untracked)$/",
+          "command": "gitConvenient.changes.stage",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'changeFolder' && gitConvenientGroup =~ /^(merge|workingTree|untracked)$/",
           "group": "1_modification@1"
         },
         {
-          "command": "gitStorm.changes.unstage",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'changeFolder' && gitStormGroup =~ /^(index)$/",
+          "command": "gitConvenient.changes.unstage",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'changeFolder' && gitConvenientGroup =~ /^(index)$/",
           "group": "1_modification@1"
         },
         {
-          "command": "gitStorm.changes.discard",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'changeFolder' && gitStormGroup =~ /^(workingTree|untracked)$/",
+          "command": "gitConvenient.changes.discard",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'changeFolder' && gitConvenientGroup =~ /^(workingTree|untracked)$/",
           "group": "1_modification@2"
         },
         {
-          "command": "gitStorm.changes.ignore",
-          "when": "webviewId == 'gitStorm.sidebar' && webviewSection == 'changeFolder' && gitStormGroup =~ /^(workingTree|untracked)$/ && gitStorm.scmResources",
+          "command": "gitConvenient.changes.ignore",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'changeFolder' && gitConvenientGroup =~ /^(workingTree|untracked)$/ && gitConvenient.scmResources",
           "group": "1_modification@3"
         },
         {
-          "command": "gitStorm.commit.copyHash",
-          "when": "(webviewId == 'gitStorm.branchesPanel' || webviewId == 'gitStorm.log') && webviewSection == 'commit'",
+          "command": "gitConvenient.commit.copyHash",
+          "when": "(webviewId == 'gitConvenient.branchesPanel' || webviewId == 'gitConvenient.log') && webviewSection == 'commit'",
           "group": "1_copy@1"
         },
         {
-          "command": "gitStorm.commit.openDiff",
-          "when": "(webviewId == 'gitStorm.branchesPanel' || webviewId == 'gitStorm.log') && webviewSection == 'commit'",
+          "command": "gitConvenient.commit.openDiff",
+          "when": "(webviewId == 'gitConvenient.branchesPanel' || webviewId == 'gitConvenient.log') && webviewSection == 'commit'",
           "group": "2_open@1"
         },
         {
-          "command": "gitStorm.commit.cherryPick",
-          "when": "(webviewId == 'gitStorm.branchesPanel' || webviewId == 'gitStorm.log') && webviewSection == 'commit'",
+          "command": "gitConvenient.commit.cherryPick",
+          "when": "(webviewId == 'gitConvenient.branchesPanel' || webviewId == 'gitConvenient.log') && webviewSection == 'commit'",
           "group": "3_commit@1"
         },
         {
-          "command": "gitStorm.commit.checkout",
-          "when": "(webviewId == 'gitStorm.branchesPanel' || webviewId == 'gitStorm.log') && webviewSection == 'commit'",
+          "command": "gitConvenient.commit.checkout",
+          "when": "(webviewId == 'gitConvenient.branchesPanel' || webviewId == 'gitConvenient.log') && webviewSection == 'commit'",
           "group": "3_commit@2"
         },
         {
-          "command": "gitStorm.commit.merge",
-          "when": "(webviewId == 'gitStorm.branchesPanel' || webviewId == 'gitStorm.log') && webviewSection == 'commit'",
+          "command": "gitConvenient.commit.merge",
+          "when": "(webviewId == 'gitConvenient.branchesPanel' || webviewId == 'gitConvenient.log') && webviewSection == 'commit'",
           "group": "3_commit@3"
         },
         {
-          "command": "gitStorm.commit.rebase",
-          "when": "(webviewId == 'gitStorm.branchesPanel' || webviewId == 'gitStorm.log') && webviewSection == 'commit'",
+          "command": "gitConvenient.commit.rebase",
+          "when": "(webviewId == 'gitConvenient.branchesPanel' || webviewId == 'gitConvenient.log') && webviewSection == 'commit'",
           "group": "3_commit@4"
         },
         {
-          "command": "gitStorm.commit.revert",
-          "when": "(webviewId == 'gitStorm.branchesPanel' || webviewId == 'gitStorm.log') && webviewSection == 'commit'",
+          "command": "gitConvenient.commit.revert",
+          "when": "(webviewId == 'gitConvenient.branchesPanel' || webviewId == 'gitConvenient.log') && webviewSection == 'commit'",
           "group": "3_commit@5"
         },
         {
-          "command": "gitStorm.commit.newBranch",
-          "when": "(webviewId == 'gitStorm.branchesPanel' || webviewId == 'gitStorm.log') && webviewSection == 'commit'",
+          "command": "gitConvenient.commit.newBranch",
+          "when": "(webviewId == 'gitConvenient.branchesPanel' || webviewId == 'gitConvenient.log') && webviewSection == 'commit'",
           "group": "4_new@1"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "gitStorm.pickChange",
+        "command": "gitConvenient.pickChange",
         "key": "ctrl+alt+d"
       },
       {
-        "command": "gitStorm.close",
+        "command": "gitConvenient.close",
         "key": "escape",
-        "when": "gitStorm.diffFocused && isAuxiliaryWindow && !findWidgetVisible && !suggestWidgetVisible && !parameterHintsVisible && !renameInputVisible && !referenceSearchVisible && !inSnippetMode && !inlineSuggestionVisible && !editorHasSelection && !editorHasMultipleSelections && !editorHoverVisible && !notificationToastsVisible && !inQuickOpen && !accessibleViewIsShown"
+        "when": "gitConvenient.diffFocused && isAuxiliaryWindow && !findWidgetVisible && !suggestWidgetVisible && !parameterHintsVisible && !renameInputVisible && !referenceSearchVisible && !inSnippetMode && !inlineSuggestionVisible && !editorHasSelection && !editorHasMultipleSelections && !editorHoverVisible && !notificationToastsVisible && !inQuickOpen && !accessibleViewIsShown"
       }
     ],
     "configuration": {
-      "title": "GitStorm",
+      "title": "Git Convenient",
       "properties": {
-        "gitStorm.openFromSourceControl": {
+        "gitConvenient.openFromSourceControl": {
           "type": "boolean",
           "default": true,
           "description": "Clicking a file in Source Control opens it in the floating window, like the window icon. Relies on internals of the built-in Git extension: if a VS Code update changes them, clicks open tabs as usual."

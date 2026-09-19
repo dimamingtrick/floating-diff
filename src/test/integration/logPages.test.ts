@@ -11,7 +11,7 @@ describe('Git Log pages', function () {
 	const shown = () => panel.channel.rendered('log', 'latest');
 
 	before(async () => {
-		repo = createTestRepo('gitstorm-log-pages-');
+		repo = createTestRepo('git-convenient-log-pages-');
 		repo.write('a.txt', 'a\n');
 		repo.git('add', '.');
 		repo.git('commit', '-qm', 'c1');
@@ -19,7 +19,7 @@ describe('Git Log pages', function () {
 			repo.git('commit', '-q', '--allow-empty', '-m', `c${i}`);
 		}
 		await openTestRepo(repo.dir, 'a.txt');
-		panel = (await vscode.commands.executeCommand<LogPanel>('gitStorm.logInEditor'))!;
+		panel = (await vscode.commands.executeCommand<LogPanel>('gitConvenient.logInEditor'))!;
 	});
 
 	after(async () => {

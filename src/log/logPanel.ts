@@ -36,7 +36,7 @@ export class LogPanel implements vscode.Disposable {
 	private readonly subscriptions: vscode.Disposable[] = [];
 
 	private constructor(extensionUri: vscode.Uri, ctx: RepoContext, diffWindow: DiffWindow, filters: LogFilters) {
-		this.panel = vscode.window.createWebviewPanel('gitStorm.log', 'Git Log', diffWindow.editorColumn(), {
+		this.panel = vscode.window.createWebviewPanel('gitConvenient.log', 'Git Log', diffWindow.editorColumn(), {
 			...webviewOptions(extensionUri),
 			retainContextWhenHidden: true,
 		});

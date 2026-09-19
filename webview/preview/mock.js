@@ -30,7 +30,7 @@
 
 	let filters = {};
 
-	// The Paths filter's search, simpler than GitStorm's: every word somewhere in the path.
+	// The Paths filter's search, simpler than Git Convenient's: every word somewhere in the path.
 	function searchPaths(query) {
 		const files = M.gitPanel.files || [];
 		const words = query.toLowerCase().split(/\s+/).filter(Boolean);

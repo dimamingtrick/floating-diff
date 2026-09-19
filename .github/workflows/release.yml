@@ -1,0 +1,77 @@
+name: Release
+
+# Every push to main is tested and packaged. A version in package.json that is
+# not out yet is released: on GitHub with the .vsix, which goes to the VS Code
+# Marketplace by hand (RELEASING.md), and on Open VSX (Cursor) with the OVSX_PAT
+# secret. Pushes without a new version change nothing.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
+      - run: npm run package
+      - id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vsix
+          path: git-convenient-${{ steps.version.outputs.version }}.vsix
+          if-no-files-found: error
+
+  github:
+    name: GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: vsix
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.build.outputs.version }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "$TAG is out already"
+          else
+            gh release create "$TAG" ./*.vsix --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+            echo "::notice::$TAG is out: upload its .vsix at https://marketplace.visualstudio.com/manage"
+          fi
+
+  open-vsx:
+    name: Open VSX (Cursor)
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: vsix
+      - if: env.OVSX_PAT == ''
+        run: echo "::notice::Not published to Open VSX, add the OVSX_PAT secret (RELEASING.md)"
+      - if: env.OVSX_PAT != ''
+        run: npx --yes ovsx@1 publish --packagePath ./*.vsix --skip-duplicate
+

@@ -52,3 +52,5 @@ The badge on the icon counts pending changes like Source Control's (`scm.countBa
     npm run test:integration   # downloads VS Code and opens a test window
     npm run test:cursor        # the floating window tests in Cursor (/Applications/Cursor.app)
     npm run preview            # the three screens with sample data: http://localhost:5178/webview/preview/?screen=log (explorer, sidebar; &theme=light)
+
+Releases: bump the version and push to `main`, see [RELEASING.md](RELEASING.md).

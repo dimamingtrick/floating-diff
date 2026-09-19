@@ -3,7 +3,30 @@
   "displayName": "GitStorm",
   "description": "WebStorm-style Git: diffs in a floating window, branches popup, Git Log with a graph, browse branches without checkout, GitStorm panel.",
   "version": "0.4.0",
-  "publisher": "local",
+  "publisher": "DimaShraho",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dimamingtrick/floating-diff.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dimamingtrick/floating-diff/issues"
+  },
+  "keywords": [
+    "git",
+    "webstorm",
+    "jetbrains",
+    "git log",
+    "git graph",
+    "branches",
+    "diff",
+    "file history"
+  ],
+  "galleryBanner": {
+    "color": "#1f1f1f",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.105.0"
   },
@@ -540,7 +563,7 @@
     "test:integration": "npm run compile && vscode-test",
     "test": "npm run test:unit && npm run test:integration",
     "vscode:prepublish": "tsc -p . --noEmit && tsc -p webview && node esbuild.mjs --production",
-    "package": "vsce package --no-dependencies --skip-license --allow-missing-repository",
+    "package": "vsce package --no-dependencies",
     "preview": "npm run compile && node webview/preview/make-mock-data.mjs && node webview/preview/serve.mjs"
   },
   "devDependencies": {

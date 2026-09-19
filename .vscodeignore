@@ -5,3 +5,5 @@
 !dist/webview/*.ttf
 !media/**
 !README.md
+!LICENSE
+!CHANGELOG.md

@@ -53,7 +53,7 @@ describe('GitStorm sidebar', function () {
 		second.write('b.ts', 'export const b = 2;\n');
 		await Promise.all([repository.status(), other.status()]);
 
-		sidebar = vscode.extensions.getExtension<GitStormExports>('local.gitstorm')!.exports.sidebar!;
+		sidebar = vscode.extensions.getExtension<GitStormExports>('DimaShraho.gitstorm')!.exports.sidebar!;
 		assert.ok(sidebar, 'the extension exposes its sidebar');
 		await vscode.commands.executeCommand('workbench.view.extension.gitStorm');
 		await waitFor(() => sidebar.channel !== undefined, 'the GitStorm view', 10000);

@@ -30,7 +30,7 @@ describe('Source Control redirect', () => {
 		git('commit -qm init');
 		fs.writeFileSync(path.join(repoDir, 'a.txt'), 'new\n');
 
-		await vscode.extensions.getExtension('local.gitstorm')!.activate();
+		await vscode.extensions.getExtension('DimaShraho.gitstorm')!.activate();
 		const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git')!;
 		const model = (gitExtension.isActive ? gitExtension.exports : await gitExtension.activate()).model as { repositories: InternalRepository[] };
 		await vscode.commands.executeCommand('git.openRepository', repoDir);

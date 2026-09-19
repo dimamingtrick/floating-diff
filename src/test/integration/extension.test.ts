@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 
 describe('extension', () => {
 	it('activates and registers its commands', async () => {
-		const extension = vscode.extensions.getExtension('local.gitstorm');
+		const extension = vscode.extensions.getExtension('DimaShraho.gitstorm');
 		assert.ok(extension, 'extension is installed in the test host');
 		await extension.activate();
 

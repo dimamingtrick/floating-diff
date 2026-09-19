@@ -542,7 +542,7 @@
       {
         "command": "gitConvenient.close",
         "key": "escape",
-        "when": "gitConvenient.diffFocused && isAuxiliaryWindow && !findWidgetVisible && !suggestWidgetVisible && !parameterHintsVisible && !renameInputVisible && !referenceSearchVisible && !inSnippetMode && !inlineSuggestionVisible && !editorHasSelection && !editorHasMultipleSelections && !editorHoverVisible && !notificationToastsVisible && !inQuickOpen && !accessibleViewIsShown"
+        "when": "gitConvenient.diffFocused && isAuxiliaryWindowFocusedContext && !findWidgetVisible && !suggestWidgetVisible && !parameterHintsVisible && !renameInputVisible && !referenceSearchVisible && !inSnippetMode && !inlineSuggestionVisible && !editorHasSelection && !editorHasMultipleSelections && !editorHoverVisible && !notificationToastsVisible && !inQuickOpen && !accessibleViewIsShown"
       }
     ],
     "configuration": {
@@ -562,6 +562,7 @@
     "test:unit": "tsc -p . && mocha",
     "test:integration": "npm run compile && vscode-test",
     "test": "npm run test:unit && npm run test:integration",
+    "test:cursor": "npm run compile && vscode-test --config .vscode-test.cursor.mjs",
     "vscode:prepublish": "tsc -p . --noEmit && tsc -p webview && node esbuild.mjs --production",
     "package": "vsce package --no-dependencies",
     "preview": "npm run compile && node webview/preview/make-mock-data.mjs && node webview/preview/serve.mjs"

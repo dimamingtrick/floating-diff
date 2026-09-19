@@ -44,6 +44,58 @@ export function fromScmCommand(cmd: Command | undefined): OpenRequest | undefine
 	return undefined;
 }
 
+interface SavedResource {
+	readonly label: string;
+	readonly original?: string;
+	readonly modified?: string;
+}
+
+/** A request as plain data, for the extension's storage. */
+export type SavedRequest =
+	| { readonly kind: 'diff'; readonly left: string; readonly right: string; readonly title: string }
+	| { readonly kind: 'file'; readonly uri: string; readonly title: string }
+	| { readonly kind: 'changes'; readonly title: string; readonly resources: readonly SavedResource[] };
+
+export function saveRequest(req: OpenRequest): SavedRequest {
+	switch (req.kind) {
+		case 'diff':
+			return { kind: 'diff', left: req.left.toString(), right: req.right.toString(), title: req.title };
+		case 'file':
+			return { kind: 'file', uri: req.uri.toString(), title: req.title };
+		case 'changes':
+			return {
+				kind: 'changes',
+				title: req.title,
+				resources: req.resources.map(r => ({ label: r.label.toString(), original: r.original?.toString(), modified: r.modified?.toString() })),
+			};
+	}
+}
+
+/** The request `saveRequest` made `saved` from; undefined for anything else. */
+export function restoreRequest(saved: unknown, parse: (value: string) => Uri): OpenRequest | undefined {
+	const fields = (value: unknown) => (typeof value === 'object' && value !== null ? value as Record<string, unknown> : {});
+	const text = (value: unknown): value is string => typeof value === 'string';
+	const optional = (value: unknown) => (text(value) ? parse(value) : undefined);
+	const s = fields(saved);
+	if (!text(s.title)) {
+		return undefined;
+	}
+	switch (s.kind) {
+		case 'diff':
+			return text(s.left) && text(s.right) ? { kind: 'diff', left: parse(s.left), right: parse(s.right), title: s.title } : undefined;
+		case 'file':
+			return text(s.uri) ? { kind: 'file', uri: parse(s.uri), title: s.title } : undefined;
+		case 'changes': {
+			const resources = Array.isArray(s.resources) ? s.resources.map(fields) : [];
+			const valid = resources.length > 0 && resources.every(r => text(r.label) && [r.original, r.modified].every(u => u === undefined || text(u)));
+			return valid
+				? { kind: 'changes', title: s.title, resources: resources.map(r => ({ label: parse(r.label as string), original: optional(r.original), modified: optional(r.modified) })) }
+				: undefined;
+		}
+	}
+	return undefined;
+}
+
 /** Whether `uri` is one of the documents shown for `req`. */
 export function showsDocument(req: OpenRequest | undefined, uri: Uri | undefined): boolean {
 	if (!req || !uri) {

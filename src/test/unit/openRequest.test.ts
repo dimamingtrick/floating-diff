@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import type { Command, Uri } from 'vscode';
 import { Change, Status } from '../../git';
-import { ChangeDeps, fromChange, fromScmCommand, OpenRequest, showsDocument } from '../../openRequest';
+import { ChangeDeps, fromChange, fromScmCommand, OpenRequest, restoreRequest, saveRequest, showsDocument } from '../../openRequest';
 
 // Minimal stand-ins for vscode.Uri: the code under test only uses `path` and `toString()`.
 function fileUri(path: string): Uri {
@@ -145,5 +145,35 @@ describe('showsDocument', () => {
 		assert.strictEqual(showsDocument(diff, OLD), false);
 		assert.strictEqual(showsDocument(file, undefined), false);
 		assert.strictEqual(showsDocument(undefined, A), false);
+	});
+});
+
+describe('saveRequest / restoreRequest', () => {
+	// The stand-in of vscode.Uri.parse for fileUri's strings.
+	const parse = (value: string) => fileUri(value.slice('file://'.length));
+	const throughStorage = (req: OpenRequest) => restoreRequest(JSON.parse(JSON.stringify(saveRequest(req))), parse);
+
+	it('keeps a diff', () => {
+		const req: OpenRequest = { kind: 'diff', left: OLD, right: NEW, title: 'new.ts (Working Tree)' };
+		assert.deepStrictEqual(plain(throughStorage(req)), plain(req));
+	});
+
+	it('keeps a file', () => {
+		const req: OpenRequest = { kind: 'file', uri: A, title: 'a.ts' };
+		assert.deepStrictEqual(plain(throughStorage(req)), plain(req));
+	});
+
+	it('keeps a multi-file diff, with its added and deleted files', () => {
+		const req: OpenRequest = {
+			kind: 'changes', title: 'Changes',
+			resources: [{ label: A, original: OLD, modified: A }, { label: NEW, modified: NEW }, { label: OLD, original: OLD }],
+		};
+		assert.deepStrictEqual(plain(throughStorage(req)), plain(req));
+	});
+
+	it('ignores anything else', () => {
+		for (const saved of [undefined, null, 'diff', { kind: 'diff', left: 'file:///a' }, { kind: 'file', uri: 1, title: 'a' }, { kind: 'changes', title: 'x', resources: [{}] }, { kind: 'other' }]) {
+			assert.strictEqual(restoreRequest(saved, parse), undefined, JSON.stringify(saved));
+		}
 	});
 });

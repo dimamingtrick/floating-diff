@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { OpenRequest, showsDocument } from "./openRequest";
+import { OpenRequest, restoreRequest, saveRequest, showsDocument } from "./openRequest";
 import type { Bounds } from "./windowBounds";
 
 /** Internal workbench command: creates a floating editor window and focuses its group. */
@@ -7,6 +7,13 @@ const NEW_WINDOW_COMMAND = "workbench.action.newEmptyEditorWindow";
 /** Internal editor group id meaning "a new floating window" (VS Code's AUX_WINDOW_GROUP). */
 const AUX_WINDOW_GROUP = -3;
 const FOCUSED_CONTEXT_KEY = "gitConvenient.diffFocused";
+/** Where the window's diff is remembered for after a restart. */
+const SHOWN_KEY = "gitConvenient.diffWindow.shown";
+/** The page a kept window shows behind the main one. */
+const IDLE_VIEW_TYPE = "gitConvenient.diffWindowIdle";
+const IDLE_HTML = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';"></head>
+<body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font:13px var(--vscode-font-family);color:var(--vscode-descriptionForeground)">The next diff opens here.</body></html>`;
 const NEW_GROUP_TIMEOUT_MS = 1000;
 
 type ChangesRequest = Extract<OpenRequest, { kind: "changes" }>;
@@ -64,11 +71,31 @@ function column(group: vscode.TabGroup | undefined): string {
   return group ? String(group.viewColumn) : "none";
 }
 
-/** The group showing `req`; floating windows come after the main window, so the highest column wins. */
-function findGroupShowing(req: OpenRequest): vscode.TabGroup | undefined {
+/** Every editor group for the log: `1:[a.ts, b.ts]* 2:[c.ts]`, the active one starred. */
+function describeGroups(): string {
   return vscode.window.tabGroups.all
-    .filter((g) => g.tabs.some((t) => tabMatches(t, req)))
+    .map((g) => `${g.viewColumn}:[${g.tabs.map((t) => t.label).join(", ")}]${g.isActive ? "*" : ""}`)
+    .join(" ");
+}
+
+function isIdleTab(tab: vscode.Tab): boolean {
+  return tab.input instanceof vscode.TabInputWebview && tab.input.viewType.endsWith(IDLE_VIEW_TYPE);
+}
+
+/**
+ * The group of our window with a tab passing `test`. Floating windows come
+ * after the main window: never the first group, which is the main window's,
+ * and the highest column wins (when a window closes, Cursor lists its editors
+ * in both windows for a moment).
+ */
+function findGroup(test: (tab: vscode.Tab) => boolean): vscode.TabGroup | undefined {
+  return vscode.window.tabGroups.all
+    .filter((g) => g.viewColumn > vscode.ViewColumn.One && g.tabs.some(test))
     .sort((a, b) => b.viewColumn - a.viewColumn)[0];
+}
+
+function findGroupShowing(req: OpenRequest): vscode.TabGroup | undefined {
+  return findGroup((t) => tabMatches(t, req));
 }
 
 /** Keeps the size of the floating window between windows. */
@@ -78,9 +105,29 @@ export interface SizeMemory {
   remember(): Promise<void>;
 }
 
+/** Where the window remembers its diff between runs: the extension's workspace state. */
+export interface DiffWindowState {
+  get(key: string): unknown;
+  update(key: string, value: unknown): Thenable<void>;
+}
+
 export interface DiffWindowOptions {
   readonly sizeMemory?: SizeMemory;
   readonly log?: (message: string) => void;
+  /**
+   * Create the window empty, then open the editor in it. Cursor (the default
+   * there) turns an editor opened "in a new window" into a group of its main
+   * window; an empty window it makes for real, but only at a fixed size.
+   */
+  readonly emptyWindowFirst?: boolean;
+  /**
+   * Esc puts the main window in front instead of closing the window, so a
+   * window the user maximized stays so for the next diffs. Cursor (the default
+   * there) opens new windows only at a fixed size and has no way to resize them.
+   */
+  readonly keepWindow?: boolean;
+  /** Remembers the shown diff: after a restart the editor brings the window back with it, and it is ours again. */
+  readonly state?: DiffWindowState;
 }
 
 /** One reusable floating window that shows a single diff at a time. */
@@ -89,21 +136,40 @@ export class DiffWindow implements vscode.Disposable {
   private current: OpenRequest | undefined;
   private focused = false;
   private warnedFallback = false;
+  private readonly emptyWindowFirst: boolean;
+  private readonly keepWindow: boolean;
+  /** The diff our window showed before a restart, until that window is found again or another opens. */
+  private restored: OpenRequest | undefined;
+  /** The page our window shows instead of a diff while it is kept behind the main window. */
+  private idle: vscode.WebviewPanel | undefined;
+  /** Shows run one after another, so a double click cannot open two windows. */
+  private queue: Promise<void> = Promise.resolve();
   private readonly subscriptions: vscode.Disposable[];
 
   constructor(private readonly options: DiffWindowOptions = {}) {
+    const inCursor = vscode.env.appName.includes("Cursor");
+    this.emptyWindowFirst = options.emptyWindowFirst ?? inCursor;
+    this.keepWindow = options.keepWindow ?? inCursor;
+    this.restored = restoreRequest(options.state?.get(SHOWN_KEY), (value) => vscode.Uri.parse(value));
     this.subscriptions = [
       vscode.window.tabGroups.onDidChangeTabGroups((e) => {
         if (this.group && e.closed.includes(this.group)) {
           this.log("our window closed");
+          const shown = this.current;
           this.group = undefined;
           this.current = undefined;
+          // Its close button moves the window's editors to the main window: ours go with the window.
+          this.idle?.dispose();
+          if (shown && e.opened.length === 0) {
+            void this.closeMoved(shown);
+          }
         }
         this.sync();
       }),
       vscode.window.tabGroups.onDidChangeTabs(() => this.sync()),
       vscode.window.onDidChangeActiveTextEditor(() => this.sync()),
     ];
+    this.sync();
   }
 
   /** Whether our floating window is the active one (drives the Esc keybinding). */
@@ -123,39 +189,46 @@ export class DiffWindow implements vscode.Disposable {
       return this.group;
     }
     // Older builds (e.g. Cursor) recreate TabGroup objects on layout changes.
-    this.group = this.current ? findGroupShowing(this.current) : undefined;
+    this.group = this.current
+      ? findGroupShowing(this.current)
+      : this.idle
+        ? findGroup(isIdleTab)
+        : this.findRestored();
+    if (!this.group && this.idle) {
+      // The page left our window: for the main window, when it closed.
+      this.idle.dispose();
+    }
     return this.group;
   }
 
-  async show(req: OpenRequest): Promise<void> {
-    if (req.kind === "changes") {
-      await this.showChanges(req);
-    } else {
-      await this.showSingle(req);
-    }
+  show(req: OpenRequest): Promise<void> {
+    const shown = this.queue.then(() => (req.kind === "changes" ? this.showChanges(req) : this.showSingle(req)));
+    this.queue = shown.catch(() => undefined);
+    return shown;
   }
 
   private async showSingle(req: SingleRequest): Promise<void> {
-    const previous = this.current;
     let group = this.resolveGroup();
-    this.log(`show "${req.title}": reusing column ${column(group)}`);
+    const previous = this.current;
+    this.log(`show "${req.title}": reusing column ${column(group)}; groups ${describeGroups()}`);
 
     if (group) {
       await this.open(req, group.viewColumn);
+      this.idle?.dispose();
+    } else if (this.emptyWindowFirst) {
+      group = await this.openInEmptyWindow(req);
     } else {
       group = await this.openInNewWindow(req);
     }
 
     this.current = req;
+    this.restored = undefined;
+    this.remember(req);
+    // Looked up again: Cursor makes new group and tab objects when editors move between windows.
     this.group =
-      group ?? findGroupShowing(req) ?? vscode.window.tabGroups.activeTabGroup;
+      findGroupShowing(req) ?? group ?? vscode.window.tabGroups.activeTabGroup;
     if (previous && !sameRequest(previous, req)) {
-      const stale = this.group.tabs.filter(
-        (t) => tabMatches(t, previous) && !t.isDirty,
-      );
-      if (stale.length > 0) {
-        await vscode.window.tabGroups.close(stale, true);
-      }
+      await this.closeTabs(previous, this.group.viewColumn);
     }
     this.sync();
   }
@@ -179,10 +252,9 @@ export class DiffWindow implements vscode.Disposable {
     );
     const group = this.resolveGroup();
     this.current = req;
-    const leftovers =
-      group?.tabs.filter((t) => tabMatches(t, placeholder) && !t.isDirty) ?? [];
-    if (leftovers.length > 0) {
-      await vscode.window.tabGroups.close(leftovers, true);
+    this.remember(req);
+    if (group) {
+      await this.closeTabs(placeholder, group.viewColumn);
     }
     this.sync();
   }
@@ -191,22 +263,82 @@ export class DiffWindow implements vscode.Disposable {
     const group = this.resolveGroup();
     const req = this.current;
     this.log(`close: ours ${column(group)}, current "${req?.title ?? "none"}"`);
-    if (!group || !req) {
+    this.restored = undefined;
+    this.remember(undefined);
+    if (!group) {
       return;
     }
-    // Esc was pressed in our window, so it is the frontmost one right now.
-    await this.options.sizeMemory?.remember();
-    const ours = group.tabs.filter((t) => tabMatches(t, req));
-    if (ours.length > 0) {
-      await vscode.window.tabGroups.close(ours);
+    if (req) {
+      if (!this.emptyWindowFirst) {
+        // Esc was pressed in our window, so it is the frontmost one right now.
+        await this.options.sizeMemory?.remember();
+      }
+      await this.closeTabs(req, group.viewColumn, false);
     }
+    this.idle?.dispose();
     // With `workbench.editor.closeEmptyGroups: false` the empty group, and so the window, stays open.
-    if (
-      vscode.window.tabGroups.all.includes(group) &&
-      group.tabs.length === 0
-    ) {
-      await vscode.window.tabGroups.close(group);
+    const left = vscode.window.tabGroups.all.find((g) => g.viewColumn === group.viewColumn);
+    if (left && left.tabs.length === 0) {
+      await vscode.window.tabGroups.close(left).then(undefined, (error: unknown) => this.log(`closing the window failed: ${String(error)}`));
     }
+  }
+
+  /** Esc: closes the window, or puts the main window in front of the window it keeps. */
+  async dismiss(): Promise<void> {
+    const group = this.resolveGroup();
+    if (!this.keepWindow || !group) {
+      await this.close();
+      return;
+    }
+    await this.showIdle(group);
+    if (!(await this.focusMainWindow())) {
+      await this.close();
+    }
+  }
+
+  /**
+   * Swaps the diff for a page the editor does not bring back after a restart,
+   * so no window of ours is left over then (Cursor may bring one back empty).
+   * Done while the window is in front: opening an editor in it later would
+   * bring it to the front.
+   */
+  private async showIdle(group: vscode.TabGroup): Promise<void> {
+    const req = this.current;
+    if (!this.idle) {
+      const shown = this.nextTab(isIdleTab);
+      const idle = vscode.window.createWebviewPanel(IDLE_VIEW_TYPE, "Git Convenient", { viewColumn: group.viewColumn, preserveFocus: true }, {});
+      idle.webview.html = IDLE_HTML;
+      idle.onDidDispose(() => {
+        if (this.idle === idle) {
+          this.idle = undefined;
+        }
+      });
+      this.idle = idle;
+      // Closing the diff before the page is in the window would close the window.
+      await shown;
+    }
+    this.current = undefined;
+    this.remember(undefined);
+    if (req) {
+      await this.closeTabs(req, group.viewColumn);
+    }
+  }
+
+  /** Resolves once a tab matching `test` opens, or after a timeout. */
+  private nextTab(test: (tab: vscode.Tab) => boolean): Promise<void> {
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        subscription.dispose();
+        resolve();
+      };
+      const timer = setTimeout(done, NEW_GROUP_TIMEOUT_MS);
+      const subscription = vscode.window.tabGroups.onDidChangeTabs((e) => {
+        if (e.opened.some(test)) {
+          done();
+        }
+      });
+    });
   }
 
   dispose(): void {
@@ -285,7 +417,7 @@ export class DiffWindow implements vscode.Disposable {
     }
     const group = (await newGroup.group) ?? findGroupShowing(req);
     this.log(
-      `new window${bounds ? ` at ${bounds.width}x${bounds.height}` : ""}: column ${column(group)} after ${Date.now() - start}ms`,
+      `new window${bounds ? ` at ${bounds.width}x${bounds.height}` : ""}: column ${column(group)} after ${Date.now() - start}ms; groups ${describeGroups()}`,
     );
     return group;
   }
@@ -307,7 +439,41 @@ export class DiffWindow implements vscode.Disposable {
       this.warnFallback();
     }
     await this.open(req, group?.viewColumn ?? vscode.ViewColumn.Active);
+    this.log(`new empty window: column ${column(group)}; groups ${describeGroups()}`);
     return group;
+  }
+
+  /**
+   * Puts the main window in front, with focus. No command does that, and
+   * Cursor even ignores focus moving to the main window from a floating one.
+   * But once it has handled a link of its own, the editor focuses its main
+   * window, and links to the built-in Git extension it handles without asking
+   * (Git acts on "/clone" only).
+   */
+  private async focusMainWindow(): Promise<boolean> {
+    const link = vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.git/git-convenient-focus-main-window`);
+    const handled = await vscode.env.openExternal(link).then(undefined, (error: unknown) => {
+      this.log(`focusing the main window failed: ${String(error)}`);
+      return false;
+    });
+    this.log(handled ? "the main window is in front of ours" : `not handled: ${link.toString()}`);
+    return handled;
+  }
+
+  /** The window from before a restart, which the editor brings back with its diff, is ours again: no second window. */
+  private findRestored(): vscode.TabGroup | undefined {
+    const group = this.restored && findGroupShowing(this.restored);
+    if (!group) {
+      return undefined;
+    }
+    this.current = this.restored;
+    this.restored = undefined;
+    this.log(`the window from before the restart: column ${group.viewColumn}`);
+    return group;
+  }
+
+  private remember(req: OpenRequest | undefined): void {
+    this.options.state?.update(SHOWN_KEY, req && saveRequest(req)).then(undefined, (error: unknown) => this.log(`remembering the diff failed: ${String(error)}`));
   }
 
   /** Resolves with the next editor group that opens, or undefined after a timeout. */
@@ -334,6 +500,35 @@ export class DiffWindow implements vscode.Disposable {
     return { group, cancel: () => settle(undefined) };
   }
 
+  /** Closes `req` wherever the closing window moved it; once more a moment later, in case it moves after. */
+  private async closeMoved(req: OpenRequest): Promise<void> {
+    for (const delay of [0, 300]) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      if (this.current && sameRequest(this.current, req)) {
+        return; // shown again meanwhile, in a new window
+      }
+      const moved = vscode.window.tabGroups.all.find((g) => g.tabs.some((t) => tabMatches(t, req) && !t.isDirty));
+      if (moved) {
+        this.log(`closing "${req.title}", moved to column ${moved.viewColumn} by the closed window`);
+        await this.closeTabs(req, undefined);
+      }
+    }
+  }
+
+  /**
+   * Closes the tabs showing `req` in the group at `viewColumn` (all groups when
+   * undefined), looked up now: Cursor makes new tab objects when editors move
+   * between windows, and closing an old one fails.
+   */
+  private async closeTabs(req: OpenRequest, viewColumn: vscode.ViewColumn | undefined, preserveFocus = true): Promise<void> {
+    const tabs = vscode.window.tabGroups.all
+      .filter((g) => viewColumn === undefined || g.viewColumn === viewColumn)
+      .flatMap((g) => g.tabs.filter((t) => tabMatches(t, req) && !t.isDirty));
+    if (tabs.length > 0) {
+      await vscode.window.tabGroups.close(tabs, preserveFocus).then(undefined, (error: unknown) => this.log(`closing "${req.title}" failed: ${String(error)}`));
+    }
+  }
+
   private warnFallback(): void {
     if (this.warnedFallback) {
       return;
@@ -356,7 +551,7 @@ export class DiffWindow implements vscode.Disposable {
     if (focused !== this.focused) {
       this.focused = focused;
       this.log(
-        `focused=${focused} (ours ${column(group)}, active ${column(active)}, active editor ours ${showsOurs})`,
+        `focused=${focused} (ours ${column(group)}, active ${column(active)}, active editor ours ${showsOurs}); groups ${describeGroups()}`,
       );
       void vscode.commands.executeCommand(
         "setContext",

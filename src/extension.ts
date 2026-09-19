@@ -29,6 +29,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitCon
 	const diffWindow = new DiffWindow({
 		sizeMemory: createSizeMemory(context, log),
 		log: message => log.info(message),
+		state: context.workspaceState,
 	});
 	let redirect: ScmOpenRedirect | undefined;
 	let api: API | undefined;
@@ -51,7 +52,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitCon
 			}
 		}),
 		vscode.commands.registerCommand('gitConvenient.pickChange', () => pickChange(diffWindow)),
-		vscode.commands.registerCommand('gitConvenient.close', () => diffWindow.close()),
+		vscode.commands.registerCommand('gitConvenient.close', () => diffWindow.dismiss()),
 		// Menus pass their own arguments (e.g. a URI): only strings are a branch and a repository root.
 		vscode.commands.registerCommand('gitConvenient.branches', async (branch?: unknown, root?: unknown) => {
 			const ctx = await repoContext(root);

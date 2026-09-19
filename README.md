@@ -10,6 +10,7 @@ WebStorm-style Git for VS Code and Cursor: diffs in a floating window, a branche
 - `Esc` closes the window (after closing find, suggestions, selection, etc.).
 - Setting `gitConvenient.openFromSourceControl` (default on): clicks in Source Control open the floating window. This relies on internals of the built-in Git extension; if a VS Code update changes them, clicks open tabs as usual and the icon keeps working.
 - macOS: the window reopens with the size and position it had when you last closed it with `Esc` (no permissions needed).
+- Cursor: it opens editor windows only at its fixed size (1024×768) and gives extensions no way to resize or maximize them. So there `Esc` puts the main window in front instead of closing the diff window: maximize it once (double-click its title bar) and the next diffs open in the same maximized window, until you close it with its close button or restart Cursor.
 
 ## Branches and Git Log (bottom panel, like WebStorm)
 
@@ -49,4 +50,5 @@ The badge on the icon counts pending changes like Source Control's (`scm.countBa
 
     npm run test:unit
     npm run test:integration   # downloads VS Code and opens a test window
+    npm run test:cursor        # the floating window tests in Cursor (/Applications/Cursor.app)
     npm run preview            # the three screens with sample data: http://localhost:5178/webview/preview/?screen=log (explorer, sidebar; &theme=light)

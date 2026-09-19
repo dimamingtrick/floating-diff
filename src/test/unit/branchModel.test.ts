@@ -84,10 +84,10 @@ describe('groupBranches', () => {
 	const alpha = branch('alpha');
 	const remote = branch('origin/main', { remote: 'origin' });
 
-	it('shows Recent, Local (current first, then by name) and Remote', () => {
-		const groups = groupBranches([zeta, remote, alpha, main], ['zeta', 'gone', 'main'], false);
+	it('shows Recent (without the current branch, first in Local), Local (current first, then by name) and Remote', () => {
+		const groups = groupBranches([zeta, remote, alpha, main], ['main', 'zeta', 'gone'], false);
 		assert.deepStrictEqual(groups.map(g => [g.title, g.branches.map(b => b.name)]), [
-			['Recent', ['zeta', 'main']],
+			['Recent', ['zeta']],
 			['Local', ['main', 'alpha', 'zeta']],
 			['Remote', ['origin/main']],
 		]);
@@ -96,6 +96,11 @@ describe('groupBranches', () => {
 	it('hides Recent while searching and drops empty groups', () => {
 		const groups = groupBranches([main], ['main'], true);
 		assert.deepStrictEqual(groups.map(g => g.title), ['Local']);
+	});
+
+	it('shows no Recent that would only repeat the current branch', () => {
+		const groups = groupBranches([main, remote], ['main'], false);
+		assert.deepStrictEqual(groups.map(g => g.title), ['Local', 'Remote']);
 	});
 });
 

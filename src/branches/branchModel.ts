@@ -80,8 +80,8 @@ export function groupBranches(branches: readonly BranchInfo[], recent: readonly 
 	const local = branches.filter(b => !b.remote).sort((a, b) => Number(b.current) - Number(a.current) || a.name.localeCompare(b.name));
 	const remote = branches.filter(b => b.remote).sort((a, b) => a.name.localeCompare(b.name));
 	const byName = new Map(local.map(b => [b.name, b] as const));
-	// While searching, Recent would repeat the Local matches.
-	const recentBranches = searching ? [] : recent.flatMap(name => byName.get(name) ?? []);
+	// While searching, Recent would repeat the Local matches; the current branch is first in Local anyway.
+	const recentBranches = searching ? [] : recent.flatMap(name => byName.get(name) ?? []).filter(b => !b.current);
 	const groups: BranchGroup[] = [
 		{ title: 'Recent', branches: recentBranches },
 		{ title: 'Local', branches: local },

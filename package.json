@@ -48,6 +48,12 @@
         "icon": "$(history)"
       },
       {
+        "command": "gitStorm.fileHistory",
+        "title": "File History",
+        "category": "GitStorm",
+        "icon": "$(history)"
+      },
+      {
         "command": "gitStorm.browseBranch",
         "title": "Browse Branch…",
         "category": "GitStorm",
@@ -232,10 +238,21 @@
       ]
     },
     "menus": {
+      "editor/title": [
+        {
+          "command": "gitStorm.fileHistory",
+          "when": "resourceScheme =~ /^(file|git)$/ && gitOpenRepositoryCount != 0",
+          "group": "navigation"
+        }
+      ],
       "commandPalette": [
         {
           "command": "gitStorm.openScmResource",
           "when": "false"
+        },
+        {
+          "command": "gitStorm.fileHistory",
+          "when": "gitOpenRepositoryCount != 0"
         },
         {
           "command": "gitStorm.close",

@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import type { GitPanel } from '../../branches/gitPanel';
 import type { API, GitExtension } from '../../git';
@@ -71,6 +72,24 @@ describe('Git panel', function () {
 	it('opens on a branch from the Git Log command', async () => {
 		await vscode.commands.executeCommand('gitStorm.log', 'feature/two');
 		await waitFor(() => panel.session?.filters.branch === 'feature/two', 'the branch filter', 10000);
+	});
+
+	it('shows the history of a file with File History, on the branch picked on the left', async () => {
+		// The Git Log command left feature/two picked: a.txt changed there only in init.
+		await vscode.commands.executeCommand('gitStorm.fileHistory', vscode.Uri.file(path.join(repo.dir, 'a.txt')));
+		await waitFor(() => panel.session?.filters.paths?.[0] === 'a.txt', 'the file filter', 10000);
+		assert.deepStrictEqual(panel.session?.filters, { branch: 'feature/two', paths: ['a.txt'] });
+		await waitForValue(() => panel.channel!.rendered('log', 'latest'), 1, 'init only', 10000);
+		// Another branch, without checking it out: init and main change.
+		await panel.handle({ type: 'filters', filters: { ...panel.session!.filters, branch: 'main' } });
+		await waitForValue(() => panel.channel!.rendered('log', 'latest'), 2, 'the history of a.txt on main', 10000);
+	});
+
+	it('finds the files of the repository for the Paths filter', async () => {
+		const items = await panel.session!.searchPaths('a.t');
+
+		assert.deepStrictEqual(items.map(item => item.path), ['a.txt']);
+		assert.ok(items[0].icon, 'with the icon of the icon theme');
 	});
 
 	it("runs WebStorm's commit actions from the context menu", async () => {

@@ -33,7 +33,8 @@ export interface LogFilters {
 	readonly branch?: string;
 	readonly author?: string;
 	readonly since?: 'day' | 'week' | 'month';
-	readonly path?: string;
+	/** Commits that change any of these files or folders. */
+	readonly paths?: readonly string[];
 	/** Commits whose message contains this text; a hash (or its start) finds that commit. */
 	readonly text?: string;
 }
@@ -61,10 +62,19 @@ export interface CommitDetails {
 	readonly icons?: Readonly<Record<string, FileIcon>>;
 }
 
+/** A file or folder of the repository, found for the Paths filter. */
+export interface PathItem {
+	readonly path: string;
+	readonly folder?: boolean;
+	readonly icon?: FileIcon;
+}
+
 export type LogToWebview =
 	| { readonly type: 'log'; readonly data: LogData }
 	| { readonly type: 'details'; readonly details: CommitDetails }
-	| { readonly type: 'busy'; readonly busy: boolean };
+	| { readonly type: 'busy'; readonly busy: boolean }
+	/** The files and folders that match `query`; the filtered ones for an empty query. */
+	| { readonly type: 'paths'; readonly query: string; readonly items: readonly PathItem[] };
 
 export type LogAction = 'cherryPick' | 'revert' | 'copyHash' | 'checkout' | 'newBranch' | 'merge' | 'rebase';
 
@@ -73,6 +83,7 @@ export type LogFromWebview =
 	| { readonly type: 'filters'; readonly filters: LogFilters }
 	| { readonly type: 'select'; readonly hash: string }
 	| { readonly type: 'loadMore' }
+	| { readonly type: 'searchPaths'; readonly query: string }
 	| { readonly type: 'refresh' }
 	| { readonly type: 'openFile'; readonly hash: string; readonly file: FileChange }
 	| { readonly type: 'openCommit'; readonly hash: string }

@@ -6,7 +6,8 @@ import type { DiffWindow } from '../diffWindow';
 import { layoutGraph } from '../graph/lanes';
 import type { RepoContext } from '../repoContext';
 import { reportError, runWithProgress } from '../report';
-import type { FileIcon, LogAction, LogFilters, LogFromWebview, LogRow, LogToWebview } from '../shared/protocol';
+import * as pathSearch from '../shared/pathSearch';
+import type { FileIcon, LogAction, LogFilters, LogFromWebview, LogRow, LogToWebview, PathItem } from '../shared/protocol';
 
 /** Commits per page: the next page loads when the list is scrolled to its end. */
 export const PAGE = 20;
@@ -32,6 +33,8 @@ export class LogSession implements vscode.Disposable {
 	private selected: string | undefined;
 	private head: string | undefined;
 	private reloadTimer: ReturnType<typeof setTimeout> | undefined;
+	/** The tracked files, for the Paths filter; listed again after any change. */
+	private files: Promise<string[]> | undefined;
 	private readonly subscription: vscode.Disposable;
 	/** Loads run one after another, so pages never ask for the same place twice. */
 	private queue: Promise<void> = Promise.resolve();
@@ -46,6 +49,7 @@ export class LogSession implements vscode.Disposable {
 		this.head = ctx.repository.state.HEAD?.commit;
 		// New commits, checkouts, pulls: reload once things settle.
 		this.subscription = ctx.repository.state.onDidChange(() => {
+			this.files = undefined;
 			const head = ctx.repository.state.HEAD?.commit;
 			if (head !== this.head) {
 				this.head = head;
@@ -74,6 +78,8 @@ export class LogSession implements vscode.Disposable {
 				return this.showDetails(message.hash);
 			case 'loadMore':
 				return this.load(true);
+			case 'searchPaths':
+				return this.post({ type: 'paths', query: message.query, items: await this.searchPaths(message.query) });
 			case 'refresh':
 				return this.load();
 			case 'openFile': {
@@ -104,9 +110,9 @@ export class LogSession implements vscode.Disposable {
 		await this.post({ type: 'busy', busy: true });
 		try {
 			const { data } = this.ctx;
-			const { branch, author, since, path: filterPath } = this.currentFilters;
+			const { branch, author, since, paths } = this.currentFilters;
 			const text = this.currentFilters.text?.trim() || undefined;
-			const filter = { ref: branch, author, since: since && SINCE[since], path: filterPath, text };
+			const filter = { ref: branch, author, since: since && SINCE[since], paths: paths?.length ? paths : undefined, text };
 			// A hash (or its start) finds that commit, like WebStorm's filter.
 			const byHash = !append && text && /^[0-9a-f]{4,40}$/i.test(text) ? await data.commitByHash(text) : undefined;
 			if (byHash) {
@@ -159,6 +165,22 @@ export class LogSession implements vscode.Disposable {
 			await this.post({ type: 'busy', busy: false });
 			void reportError(error);
 		}
+	}
+
+	/** Files and folders for the Paths filter: those that match `query`, or the filtered ones for an empty query. */
+	async searchPaths(query: string): Promise<PathItem[]> {
+		const listing = (this.files ??= this.ctx.data.files());
+		const files = await listing.catch(error => {
+			if (this.files === listing) {
+				this.files = undefined;
+			}
+			throw error;
+		});
+		const found = query.trim()
+			? pathSearch.searchPaths(files, query)
+			: (this.currentFilters.paths ?? []).map(item => (files.some(file => file.startsWith(`${item}/`)) ? { path: item, folder: true } : { path: item }));
+		const fileIcon = this.options.fileIcon;
+		return found.map(item => (item.folder || !fileIcon ? item : { ...item, icon: fileIcon(path.posix.basename(item.path)) }));
 	}
 
 	private async showDetails(hash: string): Promise<void> {

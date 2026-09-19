@@ -51,7 +51,8 @@ describe('GitData', function () {
 	it('filters the log by branch, author and path', async () => {
 		assert.deepStrictEqual((await data.log({ ref: 'feature', limit: 100 })).map(c => c.subject), ['feature: add binary', 'feature: add b', 'init']);
 		assert.deepStrictEqual((await data.log({ author: 'Olena', limit: 100 })).map(c => c.subject), ['feature: add binary']);
-		assert.deepStrictEqual((await data.log({ path: 'b.txt', limit: 100 })).map(c => c.subject), ['feature: add b']);
+		assert.deepStrictEqual((await data.log({ paths: ['b.txt'], limit: 100 })).map(c => c.subject), ['feature: add b']);
+		assert.deepStrictEqual((await data.log({ paths: ['b.txt', 'bin.dat'], limit: 100 })).map(c => c.subject), ['feature: add binary', 'feature: add b'], 'any of several files');
 	});
 
 	it('pages the log', async () => {
@@ -140,7 +141,8 @@ describe('GitData', function () {
 		assert.strictEqual(await data.count({ ref: 'feature' }), 3);
 		assert.strictEqual(await data.count({ author: 'Olena' }), 1);
 		assert.strictEqual(await data.count({ text: 'FEATURE' }), 2);
-		assert.strictEqual(await data.count({ path: 'b.txt' }), 1);
+		assert.strictEqual(await data.count({ paths: ['b.txt'] }), 1);
+		assert.strictEqual(await data.count({ paths: ['a.txt', 'b.txt'] }), 3);
 	});
 
 	it('finds a commit by the start of its hash', async () => {
@@ -148,6 +150,10 @@ describe('GitData', function () {
 
 		assert.strictEqual((await data.commitByHash(root.hash.slice(0, 7)))?.subject, 'init');
 		assert.strictEqual(await data.commitByHash('deadbeef'), undefined);
+	});
+
+	it('lists the files of the checked-out branch', async () => {
+		assert.deepStrictEqual(await data.files(), ['a.txt']);
 	});
 
 	it('lists every author of all branches', async () => {

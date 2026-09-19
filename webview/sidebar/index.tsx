@@ -4,8 +4,6 @@ import type {
 	ChangeAction,
 	ChangeGroupKind,
 	ChangeRef,
-	FileIcon,
-	FileIconFont,
 	FolderIcons,
 	GroupAction,
 	SidebarChangeGroup,
@@ -16,9 +14,10 @@ import type {
 	SidebarToWebview,
 } from '../../src/shared/protocol';
 import { buildFileTree, compactFolders, TreeNode } from '../../src/shared/fileTree';
-import { Dropdown, Empty } from '../common/components';
+import { Dropdown, Empty, IconFonts, IconView } from '../common/components';
 import { BranchIcon } from '../common/icons';
 import { getState, post, setState, useMessages, useRendered } from '../common/vscode';
+import { installTooltips } from '../common/tooltip';
 
 const send = (message: SidebarFromWebview) => post(message);
 const MAC = navigator.userAgent.includes('Mac');
@@ -58,34 +57,6 @@ const GROUP_ACTIONS: Record<ChangeGroupKind, readonly ActionButton<GroupAction>[
 	untracked: [VIEW, { action: 'discardAll', icon: 'discard', title: 'Discard All Untracked Changes' }, { action: 'stageAll', icon: 'add', title: 'Stage All Untracked Changes' }],
 };
 
-const fontFamily = (id: string) => `gitstorm-icons-${id.replace(/[^\w-]/g, '_')}`;
-
-/** The @font-face rules of the file icon theme. */
-function IconFonts({ fonts }: { fonts: readonly FileIconFont[] }) {
-	const css = fonts
-		.map(font => `@font-face { font-family: "${fontFamily(font.id)}"; src: url("${font.src}")${font.format ? ` format("${font.format}")` : ''}; font-weight: ${font.weight ?? 'normal'}; font-style: ${font.style ?? 'normal'}; }`)
-		.join('\n');
-	return <style>{css}</style>;
-}
-
-function IconView({ icon }: { icon?: FileIcon }) {
-	if (!icon) {
-		return null;
-	}
-	if (icon.kind === 'image') {
-		return (
-			<span class="file-icon">
-				<img src={icon.src} alt="" />
-			</span>
-		);
-	}
-	return (
-		<span class="file-icon glyph" style={{ fontFamily: fontFamily(icon.font), color: icon.color, fontSize: icon.size }}>
-			{icon.char}
-		</span>
-	);
-}
-
 const Codicon = ({ name }: { name: string }) => <i class={`codicon codicon-${name}`} aria-hidden="true" />;
 const Twistie = ({ open }: { open?: boolean }) => <span class="twistie">{open !== undefined && <Codicon name={open ? 'chevron-down' : 'chevron-right'} />}</span>;
 
@@ -116,24 +87,32 @@ function BranchCard({ repo }: { repo: SidebarRepo }) {
 	if (!current) {
 		return null;
 	}
-	const sync = [current.behind ? `↓${current.behind}` : '', current.ahead ? `↑${current.ahead}` : ''].filter(Boolean).join(' ');
 	const syncAction = (action: 'fetch' | 'pull' | 'push') => send({ type: 'sync', root: repo.root, action });
+	const commits = (count: number) => `${count} commit${count === 1 ? '' : 's'}`;
+	const pull = current.behind ? `Pull ${commits(current.behind)} from ${current.upstream ?? 'the remote'}` : current.upstream ? `Pull from ${current.upstream}` : 'Pull';
+	const push = !current.upstream ? 'Publish the branch to the remote' : current.ahead ? `Push ${commits(current.ahead)} to ${current.upstream}` : `Push to ${current.upstream}`;
+	// One row: the branch, then Fetch, Pull and Push; their labels show where the card has room.
 	return (
 		<div class="card">
-			<div class="card-title">
-				<button class="card-branch" title="Switch branch" onClick={() => send({ type: 'switchBranch', root: repo.root })}>
+			<div class="card-row">
+				<button class="card-branch" title="Switch branch" aria-label={`Branch ${current.name}: switch branch`} onClick={() => send({ type: 'switchBranch', root: repo.root })}>
 					<span class="card-icon"><BranchIcon size={15} /></span>
 					<span class="card-name">{current.name}</span>
 					<Codicon name="chevron-down" />
 				</button>
-				<span class="grow" />
-				{sync && <span class="mono small muted">{sync}</span>}
-			</div>
-			<div class="card-actions">
-				<button class="btn" onClick={() => syncAction('fetch')}>Fetch</button>
-				<button class="btn" onClick={() => syncAction('pull')}>Pull{current.behind ? ` ↓${current.behind}` : ''}</button>
-				<button class="btn" title={current.upstream ? `Push to ${current.upstream}` : 'Publish the branch'} onClick={() => syncAction('push')}>
-					Push{current.ahead ? ` ↑${current.ahead}` : ''}
+				<button class="btn card-btn" title="Fetch: see what is new on the remote; your files stay as they are" aria-label="Fetch" onClick={() => syncAction('fetch')}>
+					<Codicon name="repo-fetch" />
+					<span class="card-label">Fetch</span>
+				</button>
+				<button class="btn card-btn" title={pull} aria-label="Pull" onClick={() => syncAction('pull')}>
+					<Codicon name="arrow-down" />
+					<span class="card-label">Pull</span>
+					{current.behind ? <span class="card-count">{current.behind}</span> : null}
+				</button>
+				<button class="btn card-btn" title={push} aria-label="Push" onClick={() => syncAction('push')}>
+					<Codicon name="arrow-up" />
+					<span class="card-label">Push</span>
+					{current.ahead ? <span class="card-count">{current.ahead}</span> : null}
 				</button>
 			</div>
 		</div>
@@ -507,5 +486,6 @@ function orderAsTree(files: readonly SidebarFile[]): SidebarFile[] {
 	return ordered;
 }
 
+installTooltips();
 document.body.classList.add('sidebar');
 render(<App />, document.getElementById('app')!);

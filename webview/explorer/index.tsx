@@ -5,6 +5,7 @@ import { buildFileTree, filterPaths, visibleRows } from '../../src/shared/fileTr
 import { Empty, formatDate, SearchInput, shortHash, splitPath, StatusLetter } from '../common/components';
 import { BranchIcon, ChevronDown, ChevronRight, CloudIcon, CompareIcon, EyeIcon, FileIcon, FolderIcon } from '../common/icons';
 import { post, useMessages, useRendered } from '../common/vscode';
+import { installTooltips } from '../common/tooltip';
 
 const send = (message: ExplorerFromWebview) => post(message);
 
@@ -442,4 +443,5 @@ function App() {
 	);
 }
 
+installTooltips();
 render(<App />, document.getElementById('app')!);

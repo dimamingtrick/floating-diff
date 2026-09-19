@@ -3,8 +3,9 @@ import { useMemo, useRef, useState } from 'preact/hooks';
 import type { CommitDetails, FileChange, FileIcon, FileIconFont, GitBranchItem, GitPanelBranches, GitPanelFromWebview, GitPanelToWebview, LogAction, LogData, LogRow } from '../../src/shared/protocol';
 import { branchTree, BranchTreeNode } from '../../src/shared/branchTree';
 import { buildFileTree, compactFolders, TreeNode } from '../../src/shared/fileTree';
-import { Dropdown, Empty, formatDate, SearchInput, shortHash } from '../common/components';
+import { Dropdown, Empty, formatDate, IconFonts, IconView, SearchInput, shortHash } from '../common/components';
 import { getState, post, setState, useMessages, useRendered } from '../common/vscode';
+import { installTooltips } from '../common/tooltip';
 import { CommitTable, Toolbar, useLogState } from '../log/parts';
 
 const send = (message: GitPanelFromWebview) => post(message);
@@ -17,25 +18,6 @@ interface UiState {
 	readonly right: number;
 }
 const DEFAULT_UI: UiState = { collapsed: ['root:tags'], left: 240, right: 360 };
-
-const fontFamily = (id: string) => `gitstorm-icons-${id.replace(/[^\w-]/g, '_')}`;
-
-function IconFonts({ fonts }: { fonts: readonly FileIconFont[] }) {
-	const css = fonts
-		.map(font => `@font-face { font-family: "${fontFamily(font.id)}"; src: url("${font.src}")${font.format ? ` format("${font.format}")` : ''}; font-weight: ${font.weight ?? 'normal'}; font-style: ${font.style ?? 'normal'}; }`)
-		.join('\n');
-	return <style>{css}</style>;
-}
-
-function IconView({ icon }: { icon?: FileIcon }) {
-	if (!icon) {
-		return <span class="file-icon"><Codicon name="file" /></span>;
-	}
-	if (icon.kind === 'image') {
-		return <span class="file-icon"><img src={icon.src} alt="" /></span>;
-	}
-	return <span class="file-icon glyph" style={{ fontFamily: fontFamily(icon.font), color: icon.color, fontSize: icon.size }}>{icon.char}</span>;
-}
 
 /** A draggable edge between two panes. */
 function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
@@ -254,7 +236,7 @@ function FileLine({ file, icon, depth, hash }: { file: FileChange; icon?: FileIc
 	return (
 		<div class="gp-row gp-file" style={indent(depth)} role="treeitem" title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path} onClick={() => send({ type: 'openFile', hash, file })}>
 			<span class="twistie" />
-			<IconView icon={icon} />
+			<IconView icon={icon} fallback="file" />
 			<span class={`grow ellipsis ${STATUS_CLASS[file.status] ?? ''} ${file.status === 'D' ? 'strike' : ''}`}>{name}</span>
 			{file.added !== undefined && <span class="mono small add">+{file.added}</span>}
 			{file.deleted !== undefined && <span class="mono small del">−{file.deleted}</span>}
@@ -353,7 +335,7 @@ function App() {
 			<div class="gp-pane gp-log">
 				{log.data ? (
 					<>
-						<Toolbar data={log.data} />
+						<Toolbar data={log.data} paths={log.paths} />
 						<CommitTable data={log.data} rows={log.rows} selected={log.selected} onSelect={log.select} searching={log.searching} />
 					</>
 				) : branches && !branches.root ? (
@@ -379,5 +361,6 @@ function App() {
 	);
 }
 
+installTooltips();
 document.body.classList.add('panel');
 render(<App />, document.getElementById('app')!);

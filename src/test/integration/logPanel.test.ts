@@ -57,7 +57,7 @@ describe('Git Log', function () {
 		assert.strictEqual(await byAuthor, 1);
 
 		const byPath = panel.channel.rendered('log');
-		await panel.handle({ type: 'filters', filters: { path: 'src' } });
+		await panel.handle({ type: 'filters', filters: { paths: ['src'] } });
 		assert.strictEqual(await byPath, 1);
 
 		const all = panel.channel.rendered('log');

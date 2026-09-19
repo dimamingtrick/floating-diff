@@ -10,7 +10,8 @@ export interface LogFilter {
 	readonly author?: string;
 	/** Anything `git log --since` takes, e.g. `7 days ago`. */
 	readonly since?: string;
-	readonly path?: string;
+	/** Commits that change any of these files or folders. */
+	readonly paths?: readonly string[];
 	/** Commits whose message contains this text, in any case. */
 	readonly text?: string;
 }
@@ -37,7 +38,7 @@ function filterArgs(filter: LogFilter): string[] {
 	}
 	// Branches, remotes and tags rather than --all, which would add stash commits.
 	args.push(...(filter.ref ? ['--end-of-options', filter.ref] : ['--branches', '--remotes', '--tags', 'HEAD']));
-	args.push('--', ...(filter.path ? [filter.path] : []));
+	args.push('--', ...(filter.paths ?? []));
 	return args;
 }
 
@@ -98,6 +99,12 @@ export class GitData {
 			this.git(['diff-tree', '-r', '-M', '-z', '--no-commit-id', '--numstat', ...range]),
 		]);
 		return { body: body.trim(), files: mergeFileStats(parseNameStatus(nameStatus), parseNumstat(numstat)) };
+	}
+
+	/** The files Git tracks in the working tree, for the log's Paths filter. */
+	async files(): Promise<string[]> {
+		// A file in conflict is listed once per side.
+		return [...new Set(parseLsTree(await this.git(['ls-files', '-z'])))];
 	}
 
 	async tree(ref: string): Promise<string[]> {

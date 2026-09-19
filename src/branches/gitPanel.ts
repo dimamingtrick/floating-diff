@@ -89,12 +89,21 @@ export class GitPanel implements vscode.WebviewViewProvider, vscode.Disposable {
 		}
 	}
 
-	/** Shows the panel on a repository, with the log of one branch if given (the Git Log command). */
-	async show(options: { readonly root?: string; readonly branch?: string } = {}): Promise<void> {
+	/**
+	 * Shows the panel on a repository: with the log of one branch if given (the
+	 * Git Log command), or with the history of files (File History) on the
+	 * branch picked on the left.
+	 */
+	async show(options: { readonly root?: string; readonly branch?: string; readonly paths?: readonly string[] } = {}): Promise<void> {
+		const shown = this.session?.ctx.repository.rootUri.fsPath;
 		if (options.root) {
 			this.picked = options.root;
 		}
-		if (options.branch) {
+		if (options.paths) {
+			// Whoever changed the files, whenever: only the branch stays, in the same repository.
+			const branch = !options.root || options.root === shown ? this.session?.filters.branch : undefined;
+			this.pendingFilters = { ...(branch ? { branch } : {}), paths: options.paths };
+		} else if (options.branch) {
 			this.pendingFilters = { ...(this.session?.filters ?? {}), branch: options.branch };
 		}
 		await vscode.commands.executeCommand(`${GitPanel.viewId}.focus`);

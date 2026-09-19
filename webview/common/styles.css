@@ -110,6 +110,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 1px
 
 /* Menus */
 .dropdown { position: relative; display: inline-flex; }
+/* Hovers for buttons (see tooltip.ts): a title shows none in a webview on macOS. */
+.tip { position: fixed; z-index: 50; display: none; max-width: 320px; padding: 4px 8px; border: 1px solid var(--vscode-editorHoverWidget-border, var(--bd2)); border-radius: 4px; background: var(--vscode-editorHoverWidget-background, var(--pop)); color: var(--vscode-editorHoverWidget-foreground, var(--fg)); font-size: 12px; line-height: 1.4; white-space: pre-line; overflow-wrap: anywhere; box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, .36)); pointer-events: none; }
+.tip.on { display: block; }
 /* Popups sit in the window (placed by usePopup), so no pane clips them. */
 .menu { position: fixed; z-index: 20; min-width: 200px; max-width: 360px; max-height: 360px; overflow: auto; padding: 4px 0; background: var(--vscode-menu-background, var(--pop)); color: var(--vscode-menu-foreground, var(--fg)); border: 1px solid var(--vscode-menu-border, var(--bd2)); border-radius: 6px; box-shadow: var(--shadow); }
 .menu-item { display: flex; align-items: center; gap: 6px; width: 100%; height: 26px; padding: 0 12px 0 6px; border: 0; background: transparent; font-size: 12.5px; text-align: left; cursor: pointer; }
@@ -133,7 +136,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 1px
 .chip:hover { background: var(--hover); }
 .chip.on { border-color: var(--acc); background: var(--sel); color: var(--selfg); }
 .chip .ellipsis { max-width: 200px; }
-.path-pop { position: fixed; z-index: 20; width: 300px; overflow: auto; padding: 8px; background: var(--pop); border: 1px solid var(--bd2); border-radius: 6px; box-shadow: var(--shadow); }
+/* The Paths filter: the repository's files and folders, searched like Quick Open. Its height is fixed, as usePopup measures it once. */
+.paths-pop { position: fixed; z-index: 20; width: 480px; height: 380px; display: flex; flex-direction: column; overflow: hidden; background: var(--vscode-quickInput-background, var(--pop)); color: var(--vscode-quickInput-foreground, var(--fg)); border: 1px solid var(--vscode-widget-border, var(--bd2)); border-radius: 6px; box-shadow: var(--shadow); }
+/* Inside the toolbar in the DOM: not sized like the toolbar's search. */
+.paths-pop .search { flex: none; min-width: 0; margin: 8px; }
+.paths-pop .input { height: 26px; }
+.paths-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding-bottom: 4px; }
+.paths-row { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; white-space: nowrap; cursor: pointer; }
+.paths-row.active { background: var(--vscode-quickInputList-focusBackground, var(--sel)); color: var(--vscode-quickInputList-focusForeground, var(--selfg)); }
+.paths-row .file-icon { margin-right: 0; }
+.paths-row mark { background: none; color: var(--vscode-list-highlightForeground, #2aaaff); font-weight: 600; }
+.paths-check { width: 14px; height: 14px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--vscode-checkbox-border, var(--bd2)); border-radius: 3px; background: var(--vscode-checkbox-background, var(--input)); font-size: 12px; }
+.paths-check.on { background: var(--vscode-checkbox-selectBackground, var(--acc)); border-color: var(--vscode-checkbox-selectBorder, var(--acc)); color: var(--vscode-checkbox-foreground, var(--accfg)); }
+.paths-name { flex-shrink: 0; max-width: 65%; overflow: hidden; text-overflow: ellipsis; }
+.paths-dir { min-width: 0; font-size: .9em; color: var(--fg2); overflow: hidden; text-overflow: ellipsis; }
+.paths-row.active .paths-dir { color: inherit; opacity: .75; }
+.paths-hint { padding: 6px 12px; font-size: 12px; color: var(--fg2); }
+.paths-foot { flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 8px; border-top: 1px solid var(--bd); font-size: 12px; color: var(--fg2); }
 .log-body { flex-grow: 1; min-height: 0; display: flex; }
 .table { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--bd); }
 .thead { height: 24px; flex-shrink: 0; display: flex; align-items: center; padding: 0 8px 0 4px; border-bottom: 1px solid var(--bd); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--fg3); }
@@ -261,15 +280,23 @@ mark { background: var(--hit); color: var(--fg1); border-radius: 2px; }
 .repo-header { padding-left: 4px; font-size: 13px; }
 .repo-name { font-weight: 700; color: var(--fg1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .repo-branch { margin-left: 8px; font-size: .9em; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card { margin: 6px 12px 6px 12px; padding: 8px 10px; border: 1px solid var(--bd2); border-radius: 6px; background: var(--editor); }
-.card-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.card-branch { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 2px 4px; margin: -2px -4px; border: 0; border-radius: 4px; background: transparent; color: var(--fg1); cursor: pointer; }
+.card { margin: 6px 12px 6px 12px; padding: 6px 8px; border: 1px solid var(--bd2); border-radius: 6px; background: var(--editor); container-type: inline-size; }
+/* The branch, then Fetch, Pull and Push in one row. */
+.card-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.card-branch { flex: 1 1 auto; display: inline-flex; align-items: center; gap: 8px; min-width: 0; height: 26px; padding: 0 4px; margin-right: 2px; border: 0; border-radius: 4px; background: transparent; color: var(--fg1); cursor: pointer; }
 .card-branch:hover { background: var(--hover); }
 .card-branch .codicon { font-size: 14px; color: var(--fg2); }
 .card-icon { display: inline-flex; color: var(--lane0); }
 .card-name { min-width: 0; font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-actions { margin-top: 10px; display: flex; gap: 6px; }
-.card-actions .btn { flex-grow: 1; height: 26px; font-size: 11.5px; }
+.card-btn { flex: none; gap: 4px; padding: 0 6px; font-size: 11.5px; }
+.card-btn .codicon { font-size: 14px; }
+.card-count { font-family: var(--mono); font-size: 11px; }
+/* Labels only where they fit next to a branch name; the icons have tooltips. */
+.card-label { display: none; }
+@container (min-width: 360px) {
+	.card-label { display: inline; }
+	.card-btn { padding: 0 8px; }
+}
 
 /* Source Control's list and tree: 22 px rows, file icons of the icon theme, Git's colors and letters */
 .scm-list { padding: 2px 0; }

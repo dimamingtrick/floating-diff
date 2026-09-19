@@ -244,6 +244,8 @@ const gitPanel = {
 		),
 	),
 };
+// The Paths filter's search: the tracked files, with their icons.
+gitPanel.files = (await data.files()).map(file => ({ path: file, icon: icon(file.slice(file.lastIndexOf('/') + 1)) }));
 log.rows = log.rows.map(row => ({ ...row, email: `${row.author.split(' ')[0].toLowerCase()}@example.com` }));
 log.total = log.rows.length;
 // A long message, to see the commit buttons stay at the bottom.

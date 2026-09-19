@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { CommitDetails, FileChange, LogAction, LogData, LogFilters, LogFromWebview, LogRow, LogToWebview } from '../../src/shared/protocol';
+import type { CommitDetails, FileChange, LogAction, LogData, LogFilters, LogFromWebview, LogRow, LogToWebview, PathItem } from '../../src/shared/protocol';
 import { buildFileTree, visibleRows } from '../../src/shared/fileTree';
-import { Dropdown, Empty, FileRow, formatDate, initials, RefBadge, SearchInput, shortHash, usePopup } from '../common/components';
+import { Dropdown, Empty, FileRow, formatDate, IconView, initials, RefBadge, SearchInput, shortHash, usePopup } from '../common/components';
 import { BranchIcon, ChevronDown, CopyIcon, FolderIcon, ListIcon, MoreIcon, RefreshIcon, TreeIcon } from '../common/icons';
 import { post, useRendered } from '../common/vscode';
 import { DotCell, GraphCell, graphWidth, laneColor } from './graph';
@@ -10,7 +10,128 @@ export const send = (message: LogFromWebview) => post(message);
 
 const SINCE_LABELS = { day: 'Last 24 hours', week: 'Last 7 days', month: 'Last 30 days' } as const;
 
-export function Toolbar(props: { data: LogData }) {
+/** What the extension found for the Paths filter's search. */
+export interface PathResults {
+	readonly query: string;
+	readonly items: readonly PathItem[];
+}
+
+const baseName = (file: string) => file.slice(file.lastIndexOf('/') + 1);
+
+/** `text` with the part that matches `word` (in lower case) marked, like Quick Open. */
+function Marked({ text, word }: { text: string; word: string }) {
+	const at = word ? text.toLowerCase().indexOf(word) : -1;
+	if (at < 0) {
+		return <>{text}</>;
+	}
+	return <>{text.slice(0, at)}<mark>{text.slice(at, at + word.length)}</mark>{text.slice(at + word.length)}</>;
+}
+
+/**
+ * The Paths filter, like WebStorm's: search the files and folders of the
+ * repository as in Quick Open, tick one or more, and the log keeps the commits
+ * that change them. Enter takes the highlighted one too.
+ */
+function PathsFilter(props: { paths?: readonly string[]; results?: PathResults; apply: (paths: readonly string[]) => void }) {
+	const [open, setOpen] = useState(false);
+	const popup = usePopup<HTMLDivElement>(open, () => setOpen(false));
+	const [query, setQuery] = useState('');
+	const [picked, setPicked] = useState<readonly string[]>([]);
+	const [active, setActive] = useState(0);
+	const list = useRef<HTMLDivElement>(null);
+	const typing = useRef<ReturnType<typeof setTimeout>>();
+	// Icons and kinds of the paths found so far, for the ticked ones.
+	const known = useRef(new Map<string, PathItem>());
+	props.results?.items.forEach(item => known.current.set(item.path, item));
+	useEffect(() => {
+		list.current?.querySelector('.paths-row.active')?.scrollIntoView({ block: 'nearest' });
+	}, [active]);
+
+	const typed = query.trim();
+	const words = typed.toLowerCase().split(/\s+/);
+	const found = typed ? (props.results?.query.trim() ? props.results.items : []) : picked.map(item => known.current.get(item) ?? { path: item });
+	// A path that is not in the working tree any more, like a deleted file, can be typed.
+	const asPath = /[/.]/.test(typed) && !/\s/.test(typed) && !found.some(item => item.path === typed);
+	const rows: { readonly item: PathItem; readonly typed?: boolean }[] = [...found.map(item => ({ item })), ...(asPath ? [{ item: { path: typed }, typed: true }] : [])];
+
+	const toggleOpen = () => {
+		if (!open) {
+			setQuery('');
+			setPicked(props.paths ?? []);
+			setActive(0);
+			send({ type: 'searchPaths', query: '' });
+		}
+		setOpen(!open);
+	};
+	const search = (value: string) => {
+		setQuery(value);
+		setActive(0);
+		clearTimeout(typing.current);
+		typing.current = setTimeout(() => send({ type: 'searchPaths', query: value }), 120);
+	};
+	const toggle = (file: string) => setPicked(picked.includes(file) ? picked.filter(item => item !== file) : [...picked, file]);
+	const apply = (paths: readonly string[]) => {
+		setOpen(false);
+		props.apply(paths);
+	};
+	const onKeyDown = (event: KeyboardEvent) => {
+		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+			event.preventDefault();
+			setActive(Math.max(0, Math.min(rows.length - 1, active + (event.key === 'ArrowDown' ? 1 : -1))));
+		} else if (event.key === 'Enter') {
+			event.preventDefault();
+			const row = typed ? rows[active] : undefined;
+			apply(row && !picked.includes(row.item.path) ? [...picked, row.item.path] : picked);
+		}
+	};
+
+	const count = props.paths?.length ?? 0;
+	return (
+		<span class="dropdown" ref={popup.root}>
+			<button class={`chip ${count ? 'on' : ''}`} aria-expanded={open} title={props.paths?.join('\n')} onClick={toggleOpen}>
+				<span class="ellipsis">{props.paths && count ? `Paths: ${baseName(props.paths[0])}${count > 1 ? ` +${count - 1}` : ''}` : 'Paths'}</span>
+				<ChevronDown size={12} />
+			</button>
+			{open && (
+				<div class="paths-pop" ref={popup.popup} role="dialog" aria-label="Filter by files and folders">
+					<SearchInput id="paths-search" label="Search files and folders" placeholder="Search files and folders…" value={query} onInput={search} onKeyDown={onKeyDown} autoFocus />
+					<div class="paths-list" ref={list} role="listbox" aria-multiselectable="true">
+						{rows.map(({ item, typed: asTyped }, i) => {
+							const checked = picked.includes(item.path);
+							const slash = item.path.lastIndexOf('/');
+							return (
+								<div
+									key={`${asTyped ? 'typed' : 'found'}:${item.path}`}
+									class={`paths-row ${i === active ? 'active' : ''}`}
+									role="option"
+									aria-selected={checked}
+									title={item.path}
+									// The focus stays in the search field.
+									onMouseDown={event => event.preventDefault()}
+									onMouseEnter={() => setActive(i)}
+									onClick={() => toggle(item.path)}
+								>
+									<span class={`paths-check ${checked ? 'on' : ''}`}>{checked && <i class="codicon codicon-check" aria-hidden="true" />}</span>
+									<IconView icon={item.icon} fallback={item.folder ? 'folder' : 'file'} />
+									<span class="paths-name"><Marked text={asTyped ? item.path : item.path.slice(slash + 1)} word={words[words.length - 1]} /></span>
+									<span class="paths-dir">{asTyped ? 'as typed' : item.path.slice(0, Math.max(0, slash))}</span>
+								</div>
+							);
+						})}
+						{rows.length === 0 && <div class="paths-hint">{typed ? 'No files match.' : 'Type to search the files and folders of the repository.'}</div>}
+					</div>
+					<div class="paths-foot">
+						<span class="grow">{picked.length ? `${picked.length} selected` : 'Tick one or more'}</span>
+						<button class="btn" onClick={() => apply([])}>Clear</button>
+						<button class="btn primary" onClick={() => apply(picked)}>Apply</button>
+					</div>
+				</div>
+			)}
+		</span>
+	);
+}
+
+export function Toolbar(props: { data: LogData; paths?: PathResults }) {
 	const { data } = props;
 	const filters = data.filters;
 	const setFilters = (change: Partial<LogFilters>) => send({ type: 'filters', filters: { ...filters, ...change } });
@@ -23,10 +144,6 @@ export function Toolbar(props: { data: LogData }) {
 		clearTimeout(typing.current);
 		typing.current = setTimeout(() => setFilters({ text: value.trim() || undefined }), 350);
 	};
-	const [pathOpen, setPathOpen] = useState(false);
-	const pathPopup = usePopup<HTMLFormElement>(pathOpen, () => setPathOpen(false));
-	const [pathDraft, setPathDraft] = useState(filters.path ?? '');
-	useEffect(() => setPathDraft(filters.path ?? ''), [filters.path]);
 
 	const branchItems = [
 		{ label: 'All branches', checked: !filters.branch, onSelect: () => setFilters({ branch: undefined }) },
@@ -54,30 +171,7 @@ export function Toolbar(props: { data: LogData }) {
 			/>
 			<Dropdown className={`chip ${filters.author ? 'on' : ''}`} label={<span class="ellipsis">User: {filters.author ?? 'all'}</span>} items={authorItems} />
 			<Dropdown className={`chip ${filters.since ? 'on' : ''}`} label={<span>Date: {filters.since ? SINCE_LABELS[filters.since] : 'all'}</span>} items={sinceItems} />
-			<span class="dropdown" ref={pathPopup.root}>
-				<button class={`chip ${filters.path ? 'on' : ''}`} aria-expanded={pathOpen} onClick={() => setPathOpen(!pathOpen)}>
-					<span class="ellipsis">{filters.path ? `Path: ${filters.path}` : 'Paths'}</span>
-					<ChevronDown size={12} />
-				</button>
-				{pathOpen && (
-					<form
-						class="path-pop"
-						ref={pathPopup.popup}
-						onSubmit={e => {
-							e.preventDefault();
-							setPathOpen(false);
-							setFilters({ path: pathDraft.trim() || undefined });
-						}}
-					>
-						<label class="sr-only" for="path-filter">Filter by path</label>
-						<input id="path-filter" class="input" autoFocus placeholder="src/checkout or package.json — Enter to apply" value={pathDraft} onInput={e => setPathDraft((e.target as HTMLInputElement).value)} />
-						<div class="hstack" style={{ marginTop: '8px', justifyContent: 'flex-end' }}>
-							<button type="button" class="btn" onClick={() => { setPathDraft(''); setPathOpen(false); setFilters({ path: undefined }); }}>Clear</button>
-							<button type="submit" class="btn primary">Apply</button>
-						</div>
-					</form>
-				)}
-			</span>
+			<PathsFilter paths={filters.paths} results={props.paths} apply={paths => setFilters({ paths: paths.length > 0 ? paths : undefined })} />
 			<SearchInput id="log-search" label="Search commits" placeholder="Search by message or hash…" value={text} onInput={search} />
 			<span class="grow" />
 			<span class="small muted count">{data.rows.length} of {data.total} commits</span>
@@ -244,6 +338,7 @@ export function useLogState() {
 	const [details, setDetails] = useState<CommitDetails>();
 	const [busy, setBusy] = useState(true);
 	const [selected, setSelected] = useState<string>();
+	const [paths, setPaths] = useState<PathResults>();
 
 	const onMessage = (message: LogToWebview) => {
 		if (message.type === 'log') {
@@ -252,6 +347,8 @@ export function useLogState() {
 			setBusy(false);
 		} else if (message.type === 'details') {
 			setDetails(message.details);
+		} else if (message.type === 'paths') {
+			setPaths({ query: message.query, items: message.items });
 		} else {
 			setBusy(message.busy);
 		}
@@ -268,5 +365,5 @@ export function useLogState() {
 		send({ type: 'select', hash });
 	};
 	const row = data?.rows.find(candidate => candidate.hash === selected);
-	return { data, details: details?.hash === selected ? details : undefined, busy, selected, row, rows, searching, select, onMessage };
+	return { data, details: details?.hash === selected ? details : undefined, busy, selected, row, rows, searching, paths, select, onMessage };
 }

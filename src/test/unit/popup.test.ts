@@ -16,6 +16,13 @@ describe('popup placement', () => {
 		assert.strictEqual(placePopup(anchor, { width: 240, height: 120 }, view, 'right').left, 388);
 	});
 
+	it('centers under the anchor when asked, as tooltips do', () => {
+		const anchor = { left: 100, top: 10, right: 130, bottom: 38 };
+
+		assert.strictEqual(placePopup(anchor, { width: 90, height: 24 }, view, 'center').left, 70);
+		assert.strictEqual(placePopup({ ...anchor, left: 2, right: 26 }, { width: 90, height: 24 }, view, 'center').left, 4, 'inside the window');
+	});
+
 	it('opens above an anchor at the bottom of a short panel', () => {
 		const anchor = { left: 300, top: 260, right: 328, bottom: 286 };
 

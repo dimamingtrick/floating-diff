@@ -28,6 +28,19 @@
 		return { hits };
 	}
 
+	let filters = {};
+
+	// The Paths filter's search, simpler than GitStorm's: every word somewhere in the path.
+	function searchPaths(query) {
+		const files = M.gitPanel.files || [];
+		const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+		if (words.length === 0) {
+			return (filters.paths || []).map(path => files.find(file => file.path === path) || { path, folder: true });
+		}
+		const folders = [...new Set(files.flatMap(file => file.path.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))))];
+		return [...folders.map(path => ({ path, folder: true })), ...files].filter(item => words.every(word => item.path.toLowerCase().includes(word))).slice(0, 100);
+	}
+
 	const handlers = {
 		log(m) {
 			if (m.type === 'ready') {
@@ -66,7 +79,10 @@
 				const more = M.log.rows.map(row => ({ ...row, hash: `${row.hash.slice(0, 30)}0000000000`, refs: [] }));
 				reply({ type: 'log', data: { ...M.log, rows: [...M.log.rows, ...more], total: 207, canLoadMore: true } });
 			} else if (m.type === 'filters') {
+				filters = m.filters;
 				reply({ type: 'log', data: { ...M.log, filters: m.filters } });
+			} else if (m.type === 'searchPaths') {
+				reply({ type: 'paths', query: m.query, items: searchPaths(m.query) });
 			} else if (m.type === 'select') {
 				reply({ type: 'details', details: M.gitPanel.details[m.hash] });
 			}

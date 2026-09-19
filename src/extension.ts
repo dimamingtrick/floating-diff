@@ -1,3 +1,4 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { BranchesPopup } from './branches/branchesPopup';
 import { GitPanel } from './branches/gitPanel';
@@ -63,6 +64,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitSto
 			await gitPanel?.show({ branch: typeof branch === 'string' ? branch : undefined, root: typeof root === 'string' ? root : undefined });
 			return gitPanel;
 		}),
+		// The button in an editor's title: the history of its file in the Git panel, on the branch picked there.
+		vscode.commands.registerCommand('gitStorm.fileHistory', async (resource?: unknown) => {
+			const file = fileOf(resource instanceof vscode.Uri ? resource : vscode.window.activeTextEditor?.document.uri);
+			const repository = file && api?.getRepository(file);
+			if (!file || !repository) {
+				void vscode.window.showInformationMessage('GitStorm: open a file of a Git repository to see its history.');
+				return undefined;
+			}
+			const relative = path.relative(repository.rootUri.fsPath, file.fsPath).split(path.sep).join('/');
+			await gitPanel?.show({ root: repository.rootUri.fsPath, paths: [relative] });
+			return gitPanel;
+		}),
 		// The commit context menu of the logs: the webview says which one, the row which commit.
 		...(['openDiff', 'copyHash', 'cherryPick', 'checkout', 'merge', 'rebase', 'revert', 'newBranch'] as const).map(name =>
 			vscode.commands.registerCommand(`gitStorm.commit.${name}`, (context?: { webview?: string; hash?: string }) => {
@@ -117,6 +130,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitSto
 		log.warn('The Git extension internals are unavailable: Source Control clicks open tabs, and Changes stages through the Git API.');
 	}
 	return { sidebar, git: gitPanel };
+}
+
+/** The file an editor shows: in Git's diffs, a revision of it is a `git:` URI. */
+function fileOf(uri: vscode.Uri | undefined): vscode.Uri | undefined {
+	if (uri?.scheme === 'file') {
+		return uri;
+	}
+	if (uri?.scheme === 'git') {
+		try {
+			const file = (JSON.parse(uri.query) as { path?: unknown }).path;
+			return typeof file === 'string' ? vscode.Uri.file(file) : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+	return undefined;
 }
 
 /** The Git extension's own model (not API); Source Control clicks and the Changes view use it. */

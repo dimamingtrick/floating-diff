@@ -1,7 +1,7 @@
 import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { placePopup } from '../../src/shared/popup';
-import type { FileChange, RefLabel } from '../../src/shared/protocol';
+import type { FileChange, FileIcon, FileIconFont, RefLabel } from '../../src/shared/protocol';
 import { ChevronDown, SearchIcon } from './icons';
 
 /** A branch or tag label; `color` tints a local branch like its graph lane. */
@@ -21,12 +21,14 @@ export function SearchInput(props: {
 	placeholder: string;
 	value: string;
 	onInput: (value: string) => void;
+	onKeyDown?: (event: KeyboardEvent) => void;
 	autoFocus?: boolean;
 	className?: string;
 }) {
 	const input = useRef<HTMLInputElement>(null);
-	// `autofocus` only works on page load; this also covers inputs shown later (e.g. a tab).
-	useEffect(() => {
+	// `autofocus` only works on page load; this also covers inputs shown later (a tab, a popup),
+	// before the next paint, so no key typed right away is lost.
+	useLayoutEffect(() => {
 		if (props.autoFocus) {
 			input.current?.focus();
 		}
@@ -43,9 +45,31 @@ export function SearchInput(props: {
 				placeholder={props.placeholder}
 				value={props.value}
 				onInput={e => props.onInput((e.target as HTMLInputElement).value)}
+				onKeyDown={props.onKeyDown}
 			/>
 		</span>
 	);
+}
+
+const fontFamily = (id: string) => `gitstorm-icons-${id.replace(/[^\w-]/g, '_')}`;
+
+/** The @font-face rules of the file icon theme. */
+export function IconFonts({ fonts }: { fonts: readonly FileIconFont[] }) {
+	const css = fonts
+		.map(font => `@font-face { font-family: "${fontFamily(font.id)}"; src: url("${font.src}")${font.format ? ` format("${font.format}")` : ''}; font-weight: ${font.weight ?? 'normal'}; font-style: ${font.style ?? 'normal'}; }`)
+		.join('\n');
+	return <style>{css}</style>;
+}
+
+/** A file icon of the icon theme; the codicon `fallback`, if given, when the theme has none. */
+export function IconView({ icon, fallback }: { icon?: FileIcon; fallback?: string }) {
+	if (!icon) {
+		return fallback ? <span class="file-icon"><i class={`codicon codicon-${fallback}`} aria-hidden="true" /></span> : null;
+	}
+	if (icon.kind === 'image') {
+		return <span class="file-icon"><img src={icon.src} alt="" /></span>;
+	}
+	return <span class="file-icon glyph" style={{ fontFamily: fontFamily(icon.font), color: icon.color, fontSize: icon.size }}>{icon.char}</span>;
 }
 
 export interface MenuItem {

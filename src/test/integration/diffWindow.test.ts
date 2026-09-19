@@ -22,7 +22,7 @@ describe('DiffWindow', () => {
 	}
 
 	before(() => {
-		dir = fs.mkdtempSync(path.join(os.tmpdir(), 'floating-diff-'));
+		dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gitstorm-'));
 	});
 
 	beforeEach(() => {
@@ -140,6 +140,24 @@ describe('DiffWindow', () => {
 
 		await win.close();
 		await waitFor(() => !win.isFocused, 'not focused after close');
+	});
+
+	it('shows a multi-file diff in the floating window as one tab', async () => {
+		const a = diff('a.txt');
+		const b = diff('b.txt');
+		const req: OpenRequest = {
+			kind: 'changes', title: 'probe compare',
+			resources: [a, b].map(r => (r.kind === 'diff' ? { label: r.right, original: r.left, modified: r.right } : { label: vscode.Uri.file(dir) })),
+		};
+
+		await win.show(req);
+
+		const group = win.resolveGroup();
+		assert.ok(group, 'our group is known');
+		await waitFor(() => group.tabs.length === 1 && group.tabs[0].label.startsWith('probe compare'), 'one multi-diff tab');
+		assert.strictEqual(vscode.window.tabGroups.all.length, groupsBefore + 1);
+		assert.ok(tabMatches(group.tabs[0], req));
+		await waitFor(() => win.isFocused, 'focused on the multi-diff');
 	});
 
 	it('closes the window', async () => {

@@ -1,3 +1,7 @@
 **
 !dist/extension.js
+!dist/webview/*.js
+!dist/webview/*.css
+!dist/webview/*.ttf
+!media/**
 !README.md

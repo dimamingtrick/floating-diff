@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitStorm preview</title>
+<link rel="stylesheet" href="../../dist/webview/codicon.css">
+<link rel="stylesheet" href="../../dist/webview/styles.css">
+<link rel="stylesheet" href="themes.css">
+<script src="mock-data.js"></script>
+<script src="mock.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<!-- ?screen=log|explorer|sidebar &theme=dark|light &file=<path> -->
+<script>
+	const screen = new URLSearchParams(location.search).get('screen') || 'log';
+	const bundle = document.createElement('script');
+	bundle.src = `../../dist/webview/${screen}.js`;
+	document.body.appendChild(bundle);
+</script>
+</body>
+</html>

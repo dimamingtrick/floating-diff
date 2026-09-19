@@ -1,22 +1,38 @@
 import * as vscode from 'vscode';
+import { BranchesPopup } from './branches/branchesPopup';
+import { GitPanel } from './branches/gitPanel';
 import { DiffWindow } from './diffWindow';
-import type { GitExtension } from './git';
+import type { API, GitExtension } from './git';
+import { ExplorerPanel, pickBranchToBrowse } from './explorer/explorerPanel';
+import { getGitApi } from './gitApi';
+import { LogPanel } from './log/logPanel';
 import { fromScmCommand } from './openRequest';
 import { pickChange } from './pickChange';
+import { createRepoContext, pickRepository, RepoContext } from './repoContext';
+import { Sidebar } from './sidebar/sidebar';
 import { GitInternals, ScmOpenRedirect } from './scmRedirect';
 import { Bounds, MacWindowBoundsReader, WindowSizeMemory } from './windowBounds';
 
-const BOUNDS_KEY = 'floatingDiff.windowBounds';
-const OPEN_SCM_RESOURCE = 'floatingDiff.openScmResource';
+const BOUNDS_KEY = 'gitStorm.windowBounds';
+const OPEN_SCM_RESOURCE = 'gitStorm.openScmResource';
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	const log = vscode.window.createOutputChannel('Floating Diff', { log: true });
+/** What `activate` returns; the integration tests reach the sidebar through it. */
+export interface GitStormExports {
+	readonly sidebar?: Sidebar;
+	readonly git?: GitPanel;
+}
+
+export async function activate(context: vscode.ExtensionContext): Promise<GitStormExports> {
+	const log = vscode.window.createOutputChannel('GitStorm', { log: true });
 	context.subscriptions.push(log);
 	const diffWindow = new DiffWindow({
 		sizeMemory: createSizeMemory(context, log),
 		log: message => log.info(message),
 	});
 	let redirect: ScmOpenRedirect | undefined;
+	let api: API | undefined;
+	let sidebar: Sidebar | undefined;
+	let gitPanel: GitPanel | undefined;
 	context.subscriptions.push(
 		diffWindow,
 		// Runs for the window icon and, through the redirect, for clicks on Source Control files.
@@ -33,10 +49,100 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				await vscode.commands.executeCommand(command.command, ...(command.arguments ?? []));
 			}
 		}),
-		vscode.commands.registerCommand('floatingDiff.pickChange', () => pickChange(diffWindow)),
-		vscode.commands.registerCommand('floatingDiff.close', () => diffWindow.close()),
+		vscode.commands.registerCommand('gitStorm.pickChange', () => pickChange(diffWindow)),
+		vscode.commands.registerCommand('gitStorm.close', () => diffWindow.close()),
+		// Menus pass their own arguments (e.g. a URI): only strings are a branch and a repository root.
+		vscode.commands.registerCommand('gitStorm.branches', async (branch?: unknown, root?: unknown) => {
+			const ctx = await repoContext(root);
+			if (ctx) {
+				await branchesPopup(ctx).show(typeof branch === 'string' ? branch : undefined);
+			}
+		}),
+		// The log in the Git panel at the bottom, like WebStorm; in an editor tab on request.
+		vscode.commands.registerCommand('gitStorm.log', async (branch?: unknown, root?: unknown) => {
+			await gitPanel?.show({ branch: typeof branch === 'string' ? branch : undefined, root: typeof root === 'string' ? root : undefined });
+			return gitPanel;
+		}),
+		// The commit context menu of the logs: the webview says which one, the row which commit.
+		...(['openDiff', 'copyHash', 'cherryPick', 'checkout', 'merge', 'rebase', 'revert', 'newBranch'] as const).map(name =>
+			vscode.commands.registerCommand(`gitStorm.commit.${name}`, (context?: { webview?: string; hash?: string }) => {
+				const session = context?.webview === 'gitStorm.log' ? LogPanel.currentSession : gitPanel?.session;
+				if (!session || !context?.hash) {
+					return undefined;
+				}
+				return session.handle(name === 'openDiff' ? { type: 'openCommit', hash: context.hash } : { type: 'action', action: name, hash: context.hash });
+			}),
+		),
+		vscode.commands.registerCommand('gitStorm.logInEditor', async (branch?: unknown, root?: unknown) => {
+			const ctx = await repoContext(root);
+			return ctx && LogPanel.show(context.extensionUri, ctx, diffWindow, typeof branch === 'string' ? { branch } : undefined);
+		}),
+		vscode.commands.registerCommand('gitStorm.fetch', (root?: unknown) =>
+			sidebar ? sidebar.sync('fetch', typeof root === 'string' ? root : undefined) : vscode.window.showInformationMessage('GitStorm: no Git repository is open.'),
+		),
+		vscode.commands.registerCommand('gitStorm.browseBranch', async (branch?: unknown, root?: unknown) => {
+			const ctx = await repoContext(root);
+			const name = ctx && (typeof branch === 'string' ? branch : await pickBranchToBrowse(ctx));
+			return ctx && name ? ExplorerPanel.show(context.extensionUri, ctx, diffWindow, name) : undefined;
+		}),
 	);
-	redirect = await setUpScmRedirect(context, log);
+
+	/** The repository of `root`, else of the active file, else the only one, else the one the user picks. */
+	async function repoContext(root?: unknown): Promise<RepoContext | undefined> {
+		const repository = api && (await pickRepository(api, typeof root === 'string' ? root : undefined));
+		if (!api || !repository) {
+			if (!api || api.repositories.length === 0) {
+				void vscode.window.showInformationMessage('GitStorm: no Git repository is open.');
+			}
+			return undefined;
+		}
+		return createRepoContext(api, repository);
+	}
+
+	function branchesPopup(ctx: RepoContext): BranchesPopup {
+		return new BranchesPopup(ctx.branches, diffWindow, branch => vscode.commands.executeCommand('gitStorm.browseBranch', branch.name));
+	}
+	api = await getGitApi();
+	const scm = await gitInternals();
+	if (api) {
+		setUpLogLink(context, api);
+		sidebar = new Sidebar(context.extensionUri, api, diffWindow, scm, context.workspaceState);
+		gitPanel = new GitPanel(context.extensionUri, api, diffWindow);
+		context.subscriptions.push(sidebar, gitPanel);
+		if (scm) {
+			redirect = setUpScmRedirect(context, log, scm, api);
+		}
+	}
+	if (!scm) {
+		log.warn('The Git extension internals are unavailable: Source Control clicks open tabs, and Changes stages through the Git API.');
+	}
+	return { sidebar, git: gitPanel };
+}
+
+/** The Git extension's own model (not API); Source Control clicks and the Changes view use it. */
+async function gitInternals(): Promise<GitInternals | undefined> {
+	const extension = vscode.extensions.getExtension<GitExtension>('vscode.git');
+	const git = extension && (extension.isActive ? extension.exports : await extension.activate());
+	const model = git?.model as GitInternals | undefined;
+	return git?.enabled && Array.isArray(model?.repositories) ? model : undefined;
+}
+
+/** `Git Log` on the right of the status bar while a repository is open. */
+function setUpLogLink(context: vscode.ExtensionContext, api: API): void {
+	const logLink = vscode.window.createStatusBarItem('gitStorm.log', vscode.StatusBarAlignment.Right, 100);
+	logLink.name = 'GitStorm: Git Log';
+	logLink.text = '$(history) Git Log';
+	logLink.tooltip = 'Open the Git Log';
+	logLink.command = 'gitStorm.log';
+	const update = () => {
+		if (api.repositories.length > 0) {
+			logLink.show();
+		} else {
+			logLink.hide();
+		}
+	};
+	context.subscriptions.push(logLink, api.onDidOpenRepository(update), api.onDidCloseRepository(update));
+	update();
 }
 
 /**
@@ -60,22 +166,14 @@ function createSizeMemory(context: vscode.ExtensionContext, log: vscode.LogOutpu
 }
 
 /** Makes clicks on Source Control files behave like the window icon (see ScmOpenRedirect). */
-async function setUpScmRedirect(context: vscode.ExtensionContext, log: vscode.LogOutputChannel): Promise<ScmOpenRedirect | undefined> {
-	const extension = vscode.extensions.getExtension<GitExtension>('vscode.git');
-	const git = extension && (extension.isActive ? extension.exports : await extension.activate());
-	const model = git?.model as GitInternals | undefined;
-	if (!git?.enabled || !Array.isArray(model?.repositories)) {
-		log.warn('Source Control clicks keep opening tabs: the Git extension internals are unavailable.');
-		return undefined;
-	}
+function setUpScmRedirect(context: vscode.ExtensionContext, log: vscode.LogOutputChannel, model: GitInternals, api: API): ScmOpenRedirect {
 	const redirect = new ScmOpenRedirect(model, { commandId: OPEN_SCM_RESOURCE, log: message => log.info(message) });
-	const enabled = () => vscode.workspace.getConfiguration('floatingDiff').get<boolean>('openFromSourceControl', true);
+	const enabled = () => vscode.workspace.getConfiguration('gitStorm').get<boolean>('openFromSourceControl', true);
 	// Git lists its files a moment after startup: retry on every change until installed.
 	const apply = () => void redirect.setEnabled(enabled());
-	const api = git.getAPI(1);
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('floatingDiff.openFromSourceControl')) {
+			if (e.affectsConfiguration('gitStorm.openFromSourceControl')) {
 				apply();
 			}
 		}),

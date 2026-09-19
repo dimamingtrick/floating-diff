@@ -18,12 +18,12 @@ interface ChangePick extends vscode.QuickPickItem {
 export async function pickChange(diffWindow: DiffWindow): Promise<void> {
 	const api = await getGitApi();
 	if (!api) {
-		void vscode.window.showErrorMessage('Floating Diff: the built-in Git extension is disabled.');
+		void vscode.window.showErrorMessage('GitStorm: the built-in Git extension is disabled.');
 		return;
 	}
 	const items = listChanges(api);
 	if (items.length === 0) {
-		void vscode.window.showInformationMessage('Floating Diff: no changes.');
+		void vscode.window.showInformationMessage('GitStorm: no changes.');
 		return;
 	}
 

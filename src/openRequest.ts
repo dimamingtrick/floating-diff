@@ -2,10 +2,20 @@ import * as path from 'path';
 import type { Command, Uri } from 'vscode';
 import { Change, Status } from './git';
 
+/** One file of a multi-file diff. */
+export interface ChangeResource {
+	readonly label: Uri;
+	/** Missing for added files. */
+	readonly original?: Uri;
+	/** Missing for deleted files. */
+	readonly modified?: Uri;
+}
+
 /** What to show in the floating window. */
 export type OpenRequest =
 	| { readonly kind: 'diff'; readonly left: Uri; readonly right: Uri; readonly title: string }
-	| { readonly kind: 'file'; readonly uri: Uri; readonly title: string };
+	| { readonly kind: 'file'; readonly uri: Uri; readonly title: string }
+	| { readonly kind: 'changes'; readonly title: string; readonly resources: readonly ChangeResource[] };
 
 export interface ChangeDeps {
 	toGitUri(uri: Uri, ref: string): Uri;
@@ -40,9 +50,15 @@ export function showsDocument(req: OpenRequest | undefined, uri: Uri | undefined
 		return false;
 	}
 	const key = uri.toString();
-	return req.kind === 'diff'
-		? req.left.toString() === key || req.right.toString() === key
-		: req.uri.toString() === key;
+	const same = (candidate: Uri | undefined) => candidate?.toString() === key;
+	switch (req.kind) {
+		case 'diff':
+			return same(req.left) || same(req.right);
+		case 'file':
+			return same(req.uri);
+		case 'changes':
+			return req.resources.some(r => same(r.label) || same(r.original) || same(r.modified));
+	}
 }
 
 const TITLE_SUFFIX: Partial<Record<Status, string>> = {

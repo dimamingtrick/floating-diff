@@ -20,9 +20,14 @@ function plain(req: OpenRequest | undefined): unknown {
 	if (!req) {
 		return undefined;
 	}
-	return req.kind === 'diff'
-		? { kind: 'diff', left: req.left.toString(), right: req.right.toString(), title: req.title }
-		: { kind: 'file', uri: req.uri.toString(), title: req.title };
+	switch (req.kind) {
+		case 'diff':
+			return { kind: 'diff', left: req.left.toString(), right: req.right.toString(), title: req.title };
+		case 'file':
+			return { kind: 'file', uri: req.uri.toString(), title: req.title };
+		case 'changes':
+			return { kind: 'changes', title: req.title, resources: req.resources.map(r => [r.label, r.original, r.modified].map(u => u?.toString())) };
+	}
 }
 
 const A = fileUri('/repo/src/a.ts');
@@ -126,6 +131,14 @@ describe('showsDocument', () => {
 
 	it('matches the file of a single-file request', () => {
 		assert.strictEqual(showsDocument(file, fileUri('/repo/src/a.ts')), true);
+	});
+
+	it('matches any side of a multi-file request', () => {
+		const other = fileUri('/repo/src/b.ts');
+		const changes: OpenRequest = { kind: 'changes', title: 'main ↔ x', resources: [{ label: A, original: left, modified: A }, { label: other, modified: other }] };
+		assert.strictEqual(showsDocument(changes, toGitUri(A, '~')), true);
+		assert.strictEqual(showsDocument(changes, fileUri('/repo/src/b.ts')), true);
+		assert.strictEqual(showsDocument(changes, OLD), false);
 	});
 
 	it('rejects other documents and no document', () => {

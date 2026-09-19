@@ -17,12 +17,21 @@ const noEvent = () => ({ dispose: () => { } });
 function repo(root: string, state: Partial<RepositoryState>): Repository {
 	return {
 		rootUri: fileUri(root),
-		state: { indexChanges: [], workingTreeChanges: [], mergeChanges: [], onDidChange: noEvent, ...state },
+		state: { indexChanges: [], workingTreeChanges: [], mergeChanges: [], remotes: [], onDidChange: noEvent, ...state },
 	};
 }
 
 function api(...repositories: Repository[]): API {
-	return { repositories, onDidOpenRepository: noEvent, toGitUri: uri => uri };
+	return {
+		state: 'initialized',
+		onDidChangeState: noEvent,
+		git: { path: 'git' },
+		repositories,
+		onDidOpenRepository: noEvent,
+		onDidCloseRepository: noEvent,
+		getRepository: () => null,
+		toGitUri: uri => uri,
+	};
 }
 
 describe('listChanges', () => {

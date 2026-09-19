@@ -12,6 +12,8 @@ export interface GitResourceGroup {
 }
 
 export interface GitRepository {
+	/** Path of the repository root. */
+	readonly root?: string;
 	readonly mergeGroup?: GitResourceGroup;
 	readonly indexGroup?: GitResourceGroup;
 	readonly workingTreeGroup?: GitResourceGroup;

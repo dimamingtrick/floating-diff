@@ -6,22 +6,41 @@ import type { Bounds } from "./windowBounds";
 const NEW_WINDOW_COMMAND = "workbench.action.newEmptyEditorWindow";
 /** Internal editor group id meaning "a new floating window" (VS Code's AUX_WINDOW_GROUP). */
 const AUX_WINDOW_GROUP = -3;
-const FOCUSED_CONTEXT_KEY = "floatingDiff.focused";
+const FOCUSED_CONTEXT_KEY = "gitStorm.diffFocused";
 const NEW_GROUP_TIMEOUT_MS = 1000;
+
+type ChangesRequest = Extract<OpenRequest, { kind: "changes" }>;
+type SingleRequest = Exclude<OpenRequest, ChangesRequest>;
+
+/**
+ * A multi-file diff tab: VS Code has `TabInputTextMultiDiff` at runtime, but
+ * not in the 1.105 typings, so it is recognized by its `textDiffs` list.
+ */
+function isMultiDiffTab(tab: vscode.Tab): boolean {
+  return Array.isArray((tab.input as { textDiffs?: unknown } | undefined)?.textDiffs);
+}
 
 export function tabMatches(tab: vscode.Tab, req: OpenRequest): boolean {
   const input = tab.input;
-  if (req.kind === "diff") {
-    return (
-      input instanceof vscode.TabInputTextDiff &&
-      input.original.toString() === req.left.toString() &&
-      input.modified.toString() === req.right.toString()
-    );
+  switch (req.kind) {
+    case "diff":
+      return (
+        input instanceof vscode.TabInputTextDiff &&
+        input.original.toString() === req.left.toString() &&
+        input.modified.toString() === req.right.toString()
+      );
+    case "file":
+      return (
+        input instanceof vscode.TabInputText &&
+        input.uri.toString() === req.uri.toString()
+      );
+    case "changes":
+      // VS Code labels the tab "<title> (<n> files)".
+      return (
+        isMultiDiffTab(tab) &&
+        (tab.label === req.title || tab.label.startsWith(`${req.title} (`))
+      );
   }
-  return (
-    input instanceof vscode.TabInputText &&
-    input.uri.toString() === req.uri.toString()
-  );
 }
 
 function sameRequest(a: OpenRequest, b: OpenRequest): boolean {
@@ -30,6 +49,9 @@ function sameRequest(a: OpenRequest, b: OpenRequest): boolean {
       a.left.toString() === b.left.toString() &&
       a.right.toString() === b.right.toString()
     );
+  }
+  if (a.kind === "changes" && b.kind === "changes") {
+    return a.title === b.title && a.resources.length === b.resources.length;
   }
   return (
     a.kind === "file" &&
@@ -89,6 +111,12 @@ export class DiffWindow implements vscode.Disposable {
     return this.focused;
   }
 
+  /** Where other editors should open: the main window while ours has focus. */
+  editorColumn(): vscode.ViewColumn {
+    this.sync();
+    return this.focused ? vscode.ViewColumn.One : vscode.ViewColumn.Active;
+  }
+
   /** The editor group of our floating window, or undefined when it is closed. */
   resolveGroup(): vscode.TabGroup | undefined {
     if (this.group && vscode.window.tabGroups.all.includes(this.group)) {
@@ -100,6 +128,14 @@ export class DiffWindow implements vscode.Disposable {
   }
 
   async show(req: OpenRequest): Promise<void> {
+    if (req.kind === "changes") {
+      await this.showChanges(req);
+    } else {
+      await this.showSingle(req);
+    }
+  }
+
+  private async showSingle(req: SingleRequest): Promise<void> {
     const previous = this.current;
     let group = this.resolveGroup();
     this.log(`show "${req.title}": reusing column ${column(group)}`);
@@ -120,6 +156,33 @@ export class DiffWindow implements vscode.Disposable {
       if (stale.length > 0) {
         await vscode.window.tabGroups.close(stale, true);
       }
+    }
+    this.sync();
+  }
+
+  private async showChanges(req: ChangesRequest): Promise<void> {
+    const first = req.resources[0];
+    if (!first) {
+      return;
+    }
+    // A plain diff first: it creates (sized) or reuses our window and focuses
+    // it, so the multi-file diff opens in our window, the active group.
+    const placeholder: SingleRequest =
+      first.original && first.modified
+        ? { kind: "diff", left: first.original, right: first.modified, title: req.title }
+        : { kind: "file", uri: first.modified ?? first.original ?? first.label, title: req.title };
+    await this.showSingle(placeholder);
+    await vscode.commands.executeCommand(
+      "vscode.changes",
+      req.title,
+      req.resources.map((r) => [r.label, r.original, r.modified]),
+    );
+    const group = this.resolveGroup();
+    this.current = req;
+    const leftovers =
+      group?.tabs.filter((t) => tabMatches(t, placeholder) && !t.isDirty) ?? [];
+    if (leftovers.length > 0) {
+      await vscode.window.tabGroups.close(leftovers, true);
     }
     this.sync();
   }
@@ -158,7 +221,7 @@ export class DiffWindow implements vscode.Disposable {
   }
 
   private async open(
-    req: OpenRequest,
+    req: SingleRequest,
     viewColumn: vscode.ViewColumn,
   ): Promise<void> {
     const options: vscode.TextDocumentShowOptions = {
@@ -186,7 +249,7 @@ export class DiffWindow implements vscode.Disposable {
 
   /** Opens `req` in a new floating window, sized like the last one. */
   private async openInNewWindow(
-    req: OpenRequest,
+    req: SingleRequest,
   ): Promise<vscode.TabGroup | undefined> {
     const bounds = this.options.sizeMemory?.savedBounds();
     const editorOptions = {
@@ -229,7 +292,7 @@ export class DiffWindow implements vscode.Disposable {
 
   /** Fallback: create an empty floating window first, then open `req` in it. */
   private async openInEmptyWindow(
-    req: OpenRequest,
+    req: SingleRequest,
   ): Promise<vscode.TabGroup | undefined> {
     const newGroup = this.nextNewGroup();
     let group: vscode.TabGroup | undefined;
@@ -277,7 +340,7 @@ export class DiffWindow implements vscode.Disposable {
     }
     this.warnedFallback = true;
     void vscode.window.showWarningMessage(
-      "Floating Diff: floating windows are unavailable, opened as a regular tab.",
+      "GitStorm: floating windows are unavailable, opened as a regular tab.",
     );
   }
 

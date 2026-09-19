@@ -1,0 +1,44 @@
+/* Theme variables VS Code injects into webviews. Dark Modern is the fallback in styles.css. */
+html[data-theme="light"] {
+	--vscode-sideBar-background: #f8f8f8;
+	--vscode-editor-background: #ffffff;
+	--vscode-editorWidget-background: #f8f8f8;
+	--vscode-input-background: #ffffff;
+	--vscode-input-foreground: #3b3b3b;
+	--vscode-input-border: #cecece;
+	--vscode-panel-border: #e5e5e5;
+	--vscode-widget-border: #e5e5e5;
+	--vscode-foreground: #3b3b3b;
+	--vscode-tab-activeForeground: #1f1f1f;
+	--vscode-descriptionForeground: #616161;
+	--vscode-disabledForeground: #6e6e6e;
+	--vscode-button-background: #005fb8;
+	--vscode-button-foreground: #ffffff;
+	--vscode-button-hoverBackground: #0258a8;
+	--vscode-list-activeSelectionBackground: #cfe4fb;
+	--vscode-list-activeSelectionForeground: #1f1f1f;
+	--vscode-list-hoverBackground: #f0f0f0;
+	--vscode-focusBorder: #005fb8;
+	--vscode-gitDecoration-addedResourceForeground: #587c0c;
+	--vscode-gitDecoration-modifiedResourceForeground: #895503;
+	--vscode-gitDecoration-deletedResourceForeground: #ad0707;
+	--vscode-gitDecoration-untrackedResourceForeground: #007100;
+	--vscode-gitDecoration-renamedResourceForeground: #007100;
+	--vscode-charts-blue: #0969da;
+	--vscode-charts-purple: #8250df;
+	--vscode-charts-green: #2f7d32;
+	--vscode-charts-orange: #bc6c00;
+	--vscode-charts-red: #ad0707;
+	--vscode-charts-yellow: #946800;
+	--vscode-editor-findMatchHighlightBackground: rgba(234, 92, 0, .25);
+	--vscode-editorLineNumber-foreground: #6e7681;
+	--vscode-editor-lineHighlightBackground: #f3f3f3;
+	--vscode-scrollbarSlider-background: rgba(100, 100, 100, .4);
+	--vscode-widget-shadow: rgba(0, 0, 0, .16);
+	--vscode-inputValidation-warningBackground: #fff8e1;
+	--vscode-inputValidation-warningBorder: #e2c689;
+}
+/* The sidebar is a narrow view. */
+html[data-screen="sidebar"] #app { width: 320px; border-right: 1px solid var(--bd); }
+/* The bottom panel is wide and low. */
+html[data-screen="git"] #app { height: 340px; border-bottom: 1px solid var(--bd); }

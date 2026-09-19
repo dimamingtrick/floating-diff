@@ -20,7 +20,7 @@ interface InternalRepository {
 describe('Source Control redirect', () => {
 	it('makes clicking a changed file in Source Control open the floating window', async function () {
 		this.timeout(30000);
-		const repoDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'floating-diff-scm-')));
+		const repoDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'gitstorm-scm-')));
 		const git = (args: string) => execSync(`git ${args}`, { cwd: repoDir, stdio: 'ignore' });
 		git('init -q');
 		git('config user.email test@example.com');
@@ -30,7 +30,7 @@ describe('Source Control redirect', () => {
 		git('commit -qm init');
 		fs.writeFileSync(path.join(repoDir, 'a.txt'), 'new\n');
 
-		await vscode.extensions.getExtension('local.floating-diff')!.activate();
+		await vscode.extensions.getExtension('local.gitstorm')!.activate();
 		const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git')!;
 		const model = (gitExtension.isActive ? gitExtension.exports : await gitExtension.activate()).model as { repositories: InternalRepository[] };
 		await vscode.commands.executeCommand('git.openRepository', repoDir);
@@ -38,7 +38,7 @@ describe('Source Control redirect', () => {
 		const changed = () => model.repositories
 			.flatMap(repository => repository.workingTreeGroup.resourceStates)
 			.find(resource => resource.resourceUri.fsPath === path.join(repoDir, 'a.txt'));
-		await waitFor(() => changed()?.command.command === 'floatingDiff.openScmResource', 'Source Control click redirected', 15000);
+		await waitFor(() => changed()?.command.command === 'gitStorm.openScmResource', 'Source Control click redirected', 15000);
 
 		// What the Source Control view runs on click / double-click.
 		const groupsBefore = vscode.window.tabGroups.all.length;
@@ -51,13 +51,13 @@ describe('Source Control redirect', () => {
 			&& vscode.window.tabGroups.all.some(showsDiff), 'the diff in a floating window');
 		assert.ok(!vscode.window.tabGroups.all[0].tabs.some(tab => tab.input instanceof vscode.TabInputTextDiff), 'no diff tab in the main window');
 
-		await vscode.commands.executeCommand('floatingDiff.close');
+		await vscode.commands.executeCommand('gitStorm.close');
 		await waitFor(() => vscode.window.tabGroups.all.length === groupsBefore, 'window closed');
 	});
 
 	it('does the same for a new (untracked) file', async function () {
 		this.timeout(30000);
-		const repoDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'floating-diff-scm-new-')));
+		const repoDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'gitstorm-scm-new-')));
 		execSync('git init -q', { cwd: repoDir, stdio: 'ignore' });
 		const newFile = path.join(repoDir, 'new.txt');
 		fs.writeFileSync(newFile, 'brand new\n');
@@ -68,7 +68,7 @@ describe('Source Control redirect', () => {
 		const untracked = () => model.repositories
 			.flatMap(repository => repository.workingTreeGroup.resourceStates)
 			.find(resource => resource.resourceUri.fsPath === newFile);
-		await waitFor(() => untracked()?.command.command === 'floatingDiff.openScmResource', 'untracked click redirected', 15000);
+		await waitFor(() => untracked()?.command.command === 'gitStorm.openScmResource', 'untracked click redirected', 15000);
 
 		const groupsBefore = vscode.window.tabGroups.all.length;
 		const click = untracked()!.command;
@@ -77,7 +77,7 @@ describe('Source Control redirect', () => {
 		await waitFor(() => vscode.window.tabGroups.all.length === groupsBefore + 1 && vscode.window.tabGroups.all.some(group =>
 			group.tabs.some(tab => tab.input instanceof vscode.TabInputText && tab.input.uri.fsPath === newFile)), 'the new file in a floating window');
 
-		await vscode.commands.executeCommand('floatingDiff.close');
+		await vscode.commands.executeCommand('gitStorm.close');
 		await waitFor(() => vscode.window.tabGroups.all.length === groupsBefore, 'window closed');
 	});
 });

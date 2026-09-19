@@ -373,6 +373,8 @@ body.panel { background: var(--vscode-panel-background, var(--editor)); }
 .gp-row { display: flex; align-items: center; gap: 4px; height: 22px; padding-right: 8px; font-size: 13px; white-space: nowrap; cursor: pointer; user-select: none; }
 .gp-row:hover { background: var(--hover); }
 .gp-row.sel, .gp-row.sel:hover { background: var(--sel); color: var(--selfg); }
+.gp-row:focus { outline: none; }
+.gp-row:focus-visible { outline: 1px solid var(--focus); outline-offset: -1px; }
 .gp-root { font-weight: 600; }
 .gp-folder-icon, .gp-branch-icon { color: var(--fg2); margin-right: 2px; }
 .gp-branch.current { font-weight: 600; }

@@ -1,5 +1,5 @@
 import { render, type JSX } from 'preact';
-import { useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { CommitDetails, FileChange, FileIcon, FileIconFont, GitBranchItem, GitPanelBranches, GitPanelFromWebview, GitPanelToWebview, LogAction, LogData, LogRow } from '../../src/shared/protocol';
 import { branchTree, BranchTreeNode } from '../../src/shared/branchTree';
 import { buildFileTree, compactFolders, TreeNode } from '../../src/shared/fileTree';
@@ -203,12 +203,14 @@ function FilesTree({ details, ui }: { details: CommitDetails; ui: { isCollapsed:
 	const files = useMemo(() => new Map(details.files.map(file => [file.path, file] as const)), [details]);
 	const tree = useMemo(() => compactFolders(buildFileTree(details.files.map(file => file.path))), [details]);
 	const count = (node: TreeNode): number => (node.isDir ? node.children.reduce((sum, child) => sum + count(child), 0) : 1);
+	const [selected, setSelected] = useState<string>();
+	useEffect(() => setSelected(undefined), [details.hash]);
 	const rows: JSX.Element[] = [];
 	const walk = (nodes: readonly TreeNode[], depth: number) => {
 		for (const node of nodes) {
 			const file = files.get(node.path);
 			if (!node.isDir && file) {
-				rows.push(<FileLine key={node.path} file={file} icon={details.icons?.[file.path]} depth={depth} hash={details.hash} />);
+				rows.push(<FileLine key={node.path} file={file} icon={details.icons?.[file.path]} depth={depth} hash={details.hash} selected={selected === file.path} select={() => setSelected(file.path)} />);
 				continue;
 			}
 			const key = `files:${node.path}`;
@@ -231,10 +233,28 @@ function FilesTree({ details, ui }: { details: CommitDetails; ui: { isCollapsed:
 	return <>{rows}</>;
 }
 
-function FileLine({ file, icon, depth, hash }: { file: FileChange; icon?: FileIcon; depth: number; hash: string }) {
+function FileLine(props: { file: FileChange; icon?: FileIcon; depth: number; hash: string; selected: boolean; select: () => void }) {
+	const { file, icon, depth, hash, selected } = props;
 	const name = file.path.slice(file.path.lastIndexOf('/') + 1);
+	const open = () => send({ type: 'openFile', hash, file });
 	return (
-		<div class="gp-row gp-file" style={indent(depth)} role="treeitem" title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path} onClick={() => send({ type: 'openFile', hash, file })}>
+		<div
+			class={`gp-row gp-file ${selected ? 'sel' : ''}`}
+			style={indent(depth)}
+			role="treeitem"
+			aria-selected={selected}
+			tabIndex={0}
+			title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
+			// A click selects; the diff takes a double click (or Enter), like Changes.
+			onClick={props.select}
+			onDblClick={open}
+			onKeyDown={event => {
+				if (event.key === 'Enter') {
+					event.preventDefault();
+					open();
+				}
+			}}
+		>
 			<span class="twistie" />
 			<IconView icon={icon} fallback="file" />
 			<span class={`grow ellipsis ${STATUS_CLASS[file.status] ?? ''} ${file.status === 'D' ? 'strike' : ''}`}>{name}</span>

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+- Cursor: diffs open in a window of their own. Cursor opens such windows only at a fixed size and gives extensions no way to resize them, so there `Esc` brings the main window forward and keeps the diff window: maximize it once, and the next diffs open in it maximized.
+- Cursor: `Esc` works, closing the window no longer leaves its diff in the editor, and a double click no longer opens two windows.
+- Branches panel: in the files of a commit, a click selects a file; a double click or `Enter` opens its diff.
+
 ## 0.4.0
 
 First release on the Marketplace.

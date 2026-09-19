@@ -2,7 +2,7 @@
   "name": "git-convenient",
   "displayName": "Git Convenient",
   "description": "WebStorm-style Git: diffs in a floating window, branches popup, Git Log with a graph, browse branches without checkout, Git Convenient panel.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "DimaShraho",
   "license": "MIT",
   "icon": "media/icon.png",

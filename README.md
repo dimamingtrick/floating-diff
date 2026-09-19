@@ -43,8 +43,8 @@ The badge on the icon counts pending changes like Source Control's (`scm.countBa
 
     npm install
     npm run package
-    code --install-extension git-convenient-0.4.0.vsix
-    cursor --install-extension git-convenient-0.4.0.vsix
+    code --install-extension git-convenient-0.5.0.vsix
+    cursor --install-extension git-convenient-0.5.0.vsix
 
 ## Develop
 

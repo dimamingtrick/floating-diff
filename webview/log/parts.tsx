@@ -260,8 +260,10 @@ export function CommitTable(props: { data: LogData; rows: readonly LogRow[]; sel
 export function FileList(props: { details: CommitDetails; asTree: boolean }) {
 	const { details } = props;
 	const open = (file: FileChange) => send({ type: 'openFile', hash: details.hash, file });
+	// ⌘↓, like WebStorm's Jump to Source: the file itself in an editor.
+	const source = (file: FileChange) => send({ type: 'openSource', hash: details.hash, file });
 	if (!props.asTree) {
-		return <>{details.files.map(file => <FileRow key={file.path} file={file} onOpen={() => open(file)} />)}</>;
+		return <>{details.files.map(file => <FileRow key={file.path} file={file} onOpen={() => open(file)} onSource={() => source(file)} />)}</>;
 	}
 	const byPath = new Map(details.files.map(file => [file.path, file] as const));
 	return (
@@ -273,7 +275,7 @@ export function FileList(props: { details: CommitDetails; asTree: boolean }) {
 						<span class="ellipsis">{node.name}</span>
 					</div>
 				) : (
-					<FileRow key={node.path} file={byPath.get(node.path)!} indent={depth * 14} onOpen={() => open(byPath.get(node.path)!)} />
+					<FileRow key={node.path} file={byPath.get(node.path)!} indent={depth * 14} onOpen={() => open(byPath.get(node.path)!)} onSource={() => source(byPath.get(node.path)!)} />
 				),
 			)}
 		</>

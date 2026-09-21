@@ -31,6 +31,22 @@ function isUri(value: unknown): value is Uri {
 	return typeof value === 'object' && value !== null && typeof (value as Uri).path === 'string';
 }
 
+/** The file an editor shows: in Git's diffs, a revision of it is a `git:` URI naming the file. */
+export function filePathOf(uri: Uri | undefined): string | undefined {
+	if (uri?.scheme === 'file') {
+		return uri.fsPath;
+	}
+	if (uri?.scheme === 'git') {
+		try {
+			const file = (JSON.parse(uri.query) as { path?: unknown }).path;
+			return typeof file === 'string' ? file : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+	return undefined;
+}
+
 /** Reuses the click command of a built-in Git resource state (`vscode.diff` / `vscode.open`). */
 export function fromScmCommand(cmd: Command | undefined): OpenRequest | undefined {
 	const [first, second, third]: unknown[] = cmd?.arguments ?? [];

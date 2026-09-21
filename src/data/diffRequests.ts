@@ -29,6 +29,11 @@ export class RevisionDiffs {
 		return { kind: 'file', uri: (right ?? left)!, title };
 	}
 
+	/** A file as `ref` has it, read-only: an editor opens it when the working tree has no copy. */
+	revision(relative: string, ref: string): vscode.Uri {
+		return this.toGitUri(vscode.Uri.joinPath(this.root, relative), ref);
+	}
+
 	/** `ref`'s version of a file against its working tree copy, or alone when there is no copy. */
 	withWorkingTree(relative: string, ref: string, hasCopy: boolean): OpenRequest {
 		const working = vscode.Uri.joinPath(this.root, relative);

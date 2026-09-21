@@ -3,6 +3,7 @@ import type { GitRunError, GitRunner } from '../branches/gitRunner';
 import {
 	FileChange, GrepHit, LOG_FORMAT, LogCommit, mergeFileStats, parseAheadBehind, parseGrep, parseLog, parseLsTree, parseNameStatus, parseNumstat,
 } from './parse';
+import { FileRevision, parseFileRevisions, REVISION_FORMAT } from './revisions';
 
 export interface LogFilter {
 	/** A branch or other revision; all branches, remotes and tags when missing. */
@@ -67,6 +68,23 @@ export class GitData {
 			args.push(`--skip=${query.skip}`);
 		}
 		return parseLog(await this.git([...args, ...filterArgs(query)]));
+	}
+
+	/**
+	 * The commits that changed one file, newest first, following it through
+	 * renames; `ref` starts the log at a commit instead of HEAD.
+	 */
+	async fileRevisions(file: string, options: { readonly ref?: string; readonly limit?: number } = {}): Promise<FileRevision[]> {
+		const args = ['log', '--follow', '--name-only', `--format=${REVISION_FORMAT}`, `-n${options.limit ?? 2}`];
+		if (options.ref) {
+			args.push('--end-of-options', options.ref);
+		}
+		try {
+			return parseFileRevisions(await this.git([...args, '--', file]));
+		} catch {
+			// An untracked file, a ref this repository does not have: nothing to step back through.
+			return [];
+		}
 	}
 
 	/** How many commits `log` finds for a filter, to page through them. */

@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { LineBlame } from './blame/lineBlame';
 import { BranchesPopup } from './branches/branchesPopup';
 import { GitPanel } from './branches/gitPanel';
 import { DiffWindow } from './diffWindow';
@@ -7,8 +8,9 @@ import type { API, GitExtension } from './git';
 import { ExplorerPanel, pickBranchToBrowse } from './explorer/explorerPanel';
 import { getGitApi } from './gitApi';
 import { LogPanel } from './log/logPanel';
-import { fromScmCommand } from './openRequest';
+import { filePathOf, fromScmCommand } from './openRequest';
 import { pickChange } from './pickChange';
+import { diffWithPrevious } from './previousDiff';
 import { createRepoContext, pickRepository, RepoContext } from './repoContext';
 import { Sidebar } from './sidebar/sidebar';
 import { GitInternals, ScmOpenRedirect } from './scmRedirect';
@@ -21,6 +23,7 @@ const OPEN_SCM_RESOURCE = 'gitConvenient.openScmResource';
 export interface GitConvenientExports {
 	readonly sidebar?: Sidebar;
 	readonly git?: GitPanel;
+	readonly blame?: LineBlame;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<GitConvenientExports> {
@@ -35,6 +38,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitCon
 	let api: API | undefined;
 	let sidebar: Sidebar | undefined;
 	let gitPanel: GitPanel | undefined;
+	let blame: LineBlame | undefined;
 	context.subscriptions.push(
 		diffWindow,
 		// Runs for the window icon and, through the redirect, for clicks on Source Control files.
@@ -77,6 +81,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitCon
 			await gitPanel?.show({ root: repository.rootUri.fsPath, paths: [relative] });
 			return gitPanel;
 		}),
+		// The button left of File History: this file against its newest commit, then one commit further back each click.
+		vscode.commands.registerCommand('gitConvenient.diffWithPrevious', (resource?: unknown) =>
+			api ? diffWithPrevious(api, diffWindow, resource) : vscode.window.showInformationMessage('Git Convenient: no Git repository is open.'),
+		),
 		// The commit context menu of the logs: the webview says which one, the row which commit.
 		...(['openDiff', 'copyHash', 'cherryPick', 'checkout', 'merge', 'rebase', 'revert', 'newBranch'] as const).map(name =>
 			vscode.commands.registerCommand(`gitConvenient.commit.${name}`, (context?: { webview?: string; hash?: string }) => {
@@ -91,8 +99,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitCon
 			const ctx = await repoContext(root);
 			return ctx && LogPanel.show(context.extensionUri, ctx, diffWindow, typeof branch === 'string' ? { branch } : undefined);
 		}),
-		vscode.commands.registerCommand('gitConvenient.fetch', (root?: unknown) =>
-			sidebar ? sidebar.sync('fetch', typeof root === 'string' ? root : undefined) : vscode.window.showInformationMessage('Git Convenient: no Git repository is open.'),
+		// Fetch in the panel titles, Pull and Push next to File History in an editor's title.
+		...(['fetch', 'pull', 'push'] as const).map(action =>
+			vscode.commands.registerCommand(`gitConvenient.${action}`, (target?: unknown) =>
+				sidebar ? sidebar.sync(action, rootOf(target)) : vscode.window.showInformationMessage('Git Convenient: no Git repository is open.'),
+			),
 		),
 		vscode.commands.registerCommand('gitConvenient.browseBranch', async (branch?: unknown, root?: unknown) => {
 			const ctx = await repoContext(root);
@@ -100,6 +111,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitCon
 			return ctx && name ? ExplorerPanel.show(context.extensionUri, ctx, diffWindow, name) : undefined;
 		}),
 	);
+
+	/** What a menu passed: the Git panel a repository root, an editor's title the file it shows. */
+	function rootOf(target: unknown): string | undefined {
+		if (typeof target === 'string') {
+			return target;
+		}
+		const file = target instanceof vscode.Uri ? fileOf(target) : undefined;
+		return file ? api?.getRepository(file)?.rootUri.fsPath : undefined;
+	}
 
 	/** The repository of `root`, else of the active file, else the only one, else the one the user picks. */
 	async function repoContext(root?: unknown): Promise<RepoContext | undefined> {
@@ -122,7 +142,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitCon
 		setUpLogLink(context, api);
 		sidebar = new Sidebar(context.extensionUri, api, diffWindow, scm, context.workspaceState);
 		gitPanel = new GitPanel(context.extensionUri, api, diffWindow);
-		context.subscriptions.push(sidebar, gitPanel);
+		blame = new LineBlame(api, diffWindow);
+		context.subscriptions.push(sidebar, gitPanel, blame);
 		if (scm) {
 			redirect = setUpScmRedirect(context, log, scm, api);
 		}
@@ -130,23 +151,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitCon
 	if (!scm) {
 		log.warn('The Git extension internals are unavailable: Source Control clicks open tabs, and Changes stages through the Git API.');
 	}
-	return { sidebar, git: gitPanel };
+	return { sidebar, git: gitPanel, blame };
 }
 
-/** The file an editor shows: in Git's diffs, a revision of it is a `git:` URI. */
+/** The file an editor shows, as a URI of the working tree copy. */
 function fileOf(uri: vscode.Uri | undefined): vscode.Uri | undefined {
-	if (uri?.scheme === 'file') {
-		return uri;
-	}
-	if (uri?.scheme === 'git') {
-		try {
-			const file = (JSON.parse(uri.query) as { path?: unknown }).path;
-			return typeof file === 'string' ? vscode.Uri.file(file) : undefined;
-		} catch {
-			return undefined;
-		}
-	}
-	return undefined;
+	const file = filePathOf(uri);
+	return file ? vscode.Uri.file(file) : undefined;
 }
 
 /** The Git extension's own model (not API); Source Control clicks and the Changes view use it. */
@@ -198,7 +209,7 @@ function createSizeMemory(context: vscode.ExtensionContext, log: vscode.LogOutpu
 /** Makes clicks on Source Control files behave like the window icon (see ScmOpenRedirect). */
 function setUpScmRedirect(context: vscode.ExtensionContext, log: vscode.LogOutputChannel, model: GitInternals, api: API): ScmOpenRedirect {
 	const redirect = new ScmOpenRedirect(model, { commandId: OPEN_SCM_RESOURCE, log: message => log.info(message) });
-	const enabled = () => vscode.workspace.getConfiguration('gitConvenient').get<boolean>('openFromSourceControl', true);
+	const enabled = () => vscode.workspace.getConfiguration('gitConvenient').get<boolean>('openFromSourceControl', false);
 	// Git lists its files a moment after startup: retry on every change until installed.
 	const apply = () => void redirect.setEnabled(enabled());
 	context.subscriptions.push(

@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import { execFileSync } from 'child_process';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { GitConvenientExports } from '../../extension';
@@ -21,6 +22,7 @@ describe('Git Convenient sidebar', function () {
 	let repository: Repo;
 	let other: Repo;
 	let sidebar: Sidebar;
+	let origin: string;
 
 	const repoState = (repo: TestRepo): SidebarRepo | undefined => sidebar.snapshot()?.repos.find(candidate => candidate.root === repo.dir);
 	const ref = (repo: TestRepo, group: ChangeRef['group'], file: string): ChangeRef => ({ root: repo.dir, group, path: file });
@@ -28,7 +30,7 @@ describe('Git Convenient sidebar', function () {
 
 	before(async () => {
 		first = createTestRepo('git-convenient-sidebar-');
-		const origin = path.join(path.dirname(first.dir), 'origin.git');
+		origin = path.join(path.dirname(first.dir), 'origin.git');
 		execFileSync('git', ['init', '-q', '--bare', origin]);
 		first.write('a.ts', 'export const a = 1;\n');
 		first.git('add', '.');
@@ -132,6 +134,32 @@ describe('Git Convenient sidebar', function () {
 		await sidebar.handle({ type: 'sync', root: first.dir, action: 'push' });
 
 		assert.strictEqual(first.git('rev-parse', 'origin/main'), first.git('rev-parse', 'HEAD'));
+	});
+
+	it("pulls and pushes the repository of an editor's file, for the buttons in its title", async () => {
+		// Someone else pushes to origin; Pull in the title of a.ts brings it in.
+		const clone = path.join(path.dirname(first.dir), 'clone');
+		execFileSync('git', ['clone', '-q', origin, clone]);
+		const run = (...args: string[]) => execFileSync('git', args, { cwd: clone, stdio: 'pipe' }).toString();
+		run('config', 'user.email', 'other@example.com');
+		run('config', 'user.name', 'Other');
+		fs.writeFileSync(path.join(clone, 'remote.ts'), 'export const r = 1;\n');
+		run('add', '.');
+		run('commit', '-qm', 'from the remote');
+		run('push', '-q', 'origin', 'main');
+		const remoteCommit = run('rev-parse', 'HEAD').trim();
+		// The button knows its own editor's file: no open editor picks the repository here.
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+
+		await vscode.commands.executeCommand('gitConvenient.pull', vscode.Uri.file(path.join(first.dir, 'a.ts')));
+		await waitFor(() => first.git('rev-parse', 'HEAD').trim() === remoteCommit, 'the remote commit pulled in', 20000);
+
+		first.write('a.ts', 'export const a = 3;\n');
+		first.git('commit', '-qam', 'pushed from the title');
+		await vscode.commands.executeCommand('gitConvenient.push', vscode.Uri.file(path.join(first.dir, 'a.ts')));
+
+		await waitFor(() => first.git('rev-parse', 'origin/main') === first.git('rev-parse', 'HEAD'), 'the commit pushed', 20000);
+		assert.strictEqual(second.git('log', '-1', '--format=%s').trim(), 'init', 'the other repository is untouched');
 	});
 
 	it('switches between a list and a tree of files, like Source Control', async () => {

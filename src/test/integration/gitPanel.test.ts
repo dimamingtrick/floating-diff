@@ -92,6 +92,27 @@ describe('Git panel', function () {
 		assert.ok(items[0].icon, 'with the icon of the icon theme');
 	});
 
+	it("opens the file itself on ⌘↓, and its version from the commit when the commit removed it", async () => {
+		const main = repo.git('rev-parse', 'main').trim();
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		await waitFor(() => vscode.window.activeTextEditor === undefined, 'no editor open');
+		await panel.handle({ type: 'openSource', hash: main, file: { path: 'a.txt', status: 'M' } });
+		await waitFor(() => vscode.window.activeTextEditor?.document.uri.fsPath === path.join(repo.dir, 'a.txt'), 'a.txt in an editor', 10000);
+		assert.strictEqual(vscode.window.activeTextEditor!.document.uri.scheme, 'file', 'the working tree file, not a revision');
+
+		repo.write('temp.txt', 'temp\n');
+		repo.git('add', '.');
+		repo.git('commit', '-qm', 'add temp');
+		repo.git('rm', '-q', 'temp.txt');
+		repo.git('commit', '-qm', 'remove temp');
+		await panel.handle({ type: 'openSource', hash: repo.git('rev-parse', 'HEAD').trim(), file: { path: 'temp.txt', status: 'D' } });
+
+		await waitFor(() => vscode.window.activeTextEditor?.document.uri.path.endsWith('temp.txt') === true, 'temp.txt in an editor', 10000);
+		const editor = vscode.window.activeTextEditor!;
+		assert.strictEqual(editor.document.uri.scheme, 'git', 'the version before the commit removed it');
+		assert.strictEqual(editor.document.getText(), 'temp\n');
+	});
+
 	it("runs WebStorm's commit actions from the context menu", async () => {
 		const menu = (hash: string) => ({ webview: 'gitConvenient.branchesPanel', webviewSection: 'commit', hash });
 		await vscode.commands.executeCommand('gitConvenient.commit.cherryPick', menu(repo.git('rev-parse', 'feature/two').trim()));

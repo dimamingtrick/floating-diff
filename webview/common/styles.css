@@ -365,6 +365,8 @@ body.panel { background: var(--vscode-panel-background, var(--editor)); }
 .gp-log .toolbar { overflow: hidden; }
 .gp-splitter { position: relative; flex: 0 0 1px; background: var(--bd); cursor: col-resize; z-index: 5; }
 .gp-splitter::after { content: ''; position: absolute; top: 0; bottom: 0; left: -3px; right: -3px; }
+.gp-splitter.row { flex: 0 0 1px; cursor: row-resize; }
+.gp-splitter.row::after { top: -3px; bottom: -3px; left: 0; right: 0; }
 .gp-branches { display: flex; flex-direction: column; height: 100%; }
 .gp-branches-head { flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 7px 8px; }
 .gp-branches-head .search { flex: 1 1 auto; min-width: 0; }
@@ -389,7 +391,8 @@ body.panel { background: var(--vscode-panel-background, var(--editor)); }
 .gp-files { padding: 4px 0; }
 .gp-file .file-icon { margin-right: 4px; }
 .strike { text-decoration: line-through; }
-.gp-info { flex-shrink: 1; min-height: 60px; max-height: 55%; overflow: auto; padding: 8px 12px 10px 12px; border-top: 1px solid var(--bd); font-size: 12.5px; }
+/* Its height is dragged with the edge above it, and kept between runs. */
+.gp-info { flex: 0 0 auto; min-height: 60px; overflow: auto; padding: 8px 12px 10px 12px; font-size: 12.5px; }
 .gp-subject { font-family: var(--mono); font-weight: 700; color: var(--fg1); overflow-wrap: anywhere; }
 .gp-body { margin-top: 6px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .gp-meta { margin-top: 6px; display: flex; align-items: center; gap: 8px; min-width: 0; }

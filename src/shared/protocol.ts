@@ -86,6 +86,8 @@ export type LogFromWebview =
 	| { readonly type: 'searchPaths'; readonly query: string }
 	| { readonly type: 'refresh' }
 	| { readonly type: 'openFile'; readonly hash: string; readonly file: FileChange }
+	/** ⌘↓ on a file: the file itself in an editor, like WebStorm's Jump to Source. */
+	| { readonly type: 'openSource'; readonly hash: string; readonly file: FileChange }
 	| { readonly type: 'openCommit'; readonly hash: string }
 	| { readonly type: 'action'; readonly action: LogAction; readonly hash: string };
 

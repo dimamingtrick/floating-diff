@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { CommitDetails, FileChange, FileIcon, FileIconFont, GitBranchItem, GitPanelBranches, GitPanelFromWebview, GitPanelToWebview, LogAction, LogData, LogRow } from '../../src/shared/protocol';
 import { branchTree, BranchTreeNode } from '../../src/shared/branchTree';
 import { buildFileTree, compactFolders, TreeNode } from '../../src/shared/fileTree';
-import { Dropdown, Empty, formatDate, IconFonts, IconView, SearchInput, shortHash } from '../common/components';
+import { resizeInfo } from '../../src/shared/panes';
+import { Dropdown, Empty, formatDate, IconFonts, IconView, isJumpToSource, SearchInput, shortHash } from '../common/components';
 import { getState, post, setState, useMessages, useRendered } from '../common/vscode';
 import { installTooltips } from '../common/tooltip';
 import { CommitTable, Toolbar, useLogState } from '../log/parts';
@@ -16,25 +17,30 @@ interface UiState {
 	readonly collapsed: readonly string[];
 	readonly left: number;
 	readonly right: number;
+	/** Height of the commit details under the files of the commit. */
+	readonly info: number;
 }
-const DEFAULT_UI: UiState = { collapsed: ['root:tags'], left: 240, right: 360 };
+const DEFAULT_UI: UiState = { collapsed: ['root:tags'], left: 240, right: 360, info: 150 };
 
-/** A draggable edge between two panes. */
-function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
+/** A draggable edge between two panes, side by side or one above the other. */
+function Splitter({ onDrag, axis = 'x' }: { onDrag: (delta: number) => void; axis?: 'x' | 'y' }) {
 	const start = useRef<number>();
+	const along = (event: { clientX: number; clientY: number }) => (axis === 'x' ? event.clientX : event.clientY);
 	return (
 		<div
-			class="gp-splitter"
+			class={`gp-splitter ${axis === 'y' ? 'row' : ''}`}
 			role="separator"
-			aria-orientation="vertical"
+			aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
 			onPointerDown={event => {
-				start.current = event.clientX;
+				// Without this the drag selects the text of the panes it crosses.
+				event.preventDefault();
+				start.current = along(event);
 				(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 			}}
 			onPointerMove={event => {
 				if (start.current !== undefined) {
-					onDrag(event.clientX - start.current);
-					start.current = event.clientX;
+					onDrag(along(event) - start.current);
+					start.current = along(event);
 				}
 			}}
 			onPointerUp={() => {
@@ -249,7 +255,11 @@ function FileLine(props: { file: FileChange; icon?: FileIcon; depth: number; has
 			onClick={props.select}
 			onDblClick={open}
 			onKeyDown={event => {
-				if (event.key === 'Enter') {
+				if (isJumpToSource(event)) {
+					// ⌘↓ (Ctrl+↓ on Windows and Linux): the file itself in the editor, like WebStorm's Jump to Source.
+					event.preventDefault();
+					send({ type: 'openSource', hash, file });
+				} else if (event.key === 'Enter') {
 					event.preventDefault();
 					open();
 				}
@@ -265,13 +275,13 @@ function FileLine(props: { file: FileChange; icon?: FileIcon; depth: number; has
 }
 
 /** The commit: message, hash, author, date and the branches that contain it; its buttons stay at the bottom. */
-function CommitInfo({ row, details }: { row: LogRow; details?: CommitDetails }) {
+function CommitInfo({ row, details, height }: { row: LogRow; details?: CommitDetails; height: number }) {
 	const [all, setAll] = useState(false);
 	const branches = details?.branches ?? [];
 	const action = (name: LogAction) => send({ type: 'action', action: name, hash: row.hash });
 	return (
 		<>
-		<div class="gp-info">
+		<div class="gp-info" style={{ height: `${height}px` }}>
 			<div class="gp-subject">{row.subject}</div>
 			{details?.body && <div class="gp-body">{details.body}</div>}
 			<div class="gp-meta">
@@ -343,6 +353,7 @@ function App() {
 	);
 	const resize = (side: 'left' | 'right', dx: number) =>
 		update({ ...ui, [side]: Math.max(160, Math.min(700, ui[side] + (side === 'left' ? dx : -dx))) });
+	const commitPane = useRef<HTMLDivElement>(null);
 
 	return (
 		<div class="gp">
@@ -365,13 +376,14 @@ function App() {
 				)}
 			</div>
 			<Splitter onDrag={dx => resize('right', dx)} />
-			<div class="gp-pane gp-commit" style={{ width: `${ui.right}px` }}>
+			<div class="gp-pane gp-commit" style={{ width: `${ui.right}px` }} ref={commitPane}>
 				{log.row ? (
 					<>
 						<div class="gp-scroll gp-files" role="tree" aria-label="Changed files">
 							{log.details ? <FilesTree details={log.details} ui={tree} /> : <div class="empty">…</div>}
 						</div>
-						<CommitInfo row={log.row} details={log.details} />
+						<Splitter axis="y" onDrag={dy => update({ ...ui, info: resizeInfo(ui.info, dy, commitPane.current?.clientHeight ?? 600) })} />
+						<CommitInfo row={log.row} details={log.details} height={ui.info} />
 					</>
 				) : (
 					<Empty title="Select a commit" />

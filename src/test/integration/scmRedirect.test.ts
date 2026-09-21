@@ -18,8 +18,46 @@ interface InternalRepository {
 
 // Exercises the real Git extension internals the redirect depends on.
 describe('Source Control redirect', () => {
+	const setting = () => vscode.workspace.getConfiguration('gitConvenient');
+	const changedFile = (model: { repositories: InternalRepository[] }, file: string) => () => model.repositories
+		.flatMap(repository => repository.workingTreeGroup.resourceStates)
+		.find(resource => resource.resourceUri.fsPath === file);
+
+	afterEach(async () => {
+		await setting().update('openFromSourceControl', undefined, vscode.ConfigurationTarget.Global);
+	});
+
+	it('leaves Source Control its own clicks, until it is turned on', async function () {
+		this.timeout(30000);
+		const repoDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-convenient-scm-off-')));
+		const git = (args: string) => execSync(`git ${args}`, { cwd: repoDir, stdio: 'ignore' });
+		git('init -q');
+		git('config user.email test@example.com');
+		git('config user.name Test');
+		fs.writeFileSync(path.join(repoDir, 'a.txt'), 'old\n');
+		git('add a.txt');
+		git('commit -qm init');
+		fs.writeFileSync(path.join(repoDir, 'a.txt'), 'new\n');
+
+		await vscode.extensions.getExtension('DimaShraho.git-convenient')!.activate();
+		const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git')!;
+		const model = (gitExtension.isActive ? gitExtension.exports : await gitExtension.activate()).model as { repositories: InternalRepository[] };
+		await vscode.commands.executeCommand('git.openRepository', repoDir);
+		const changed = changedFile(model, path.join(repoDir, 'a.txt'));
+		await waitFor(() => changed() !== undefined, 'the changed file in Source Control', 15000);
+
+		// Git's own command, so a click opens a tab the way it always did.
+		await new Promise(resolve => setTimeout(resolve, 500));
+		assert.notStrictEqual(changed()!.command.command, 'gitConvenient.openScmResource');
+
+		await setting().update('openFromSourceControl', true, vscode.ConfigurationTarget.Global);
+
+		await waitFor(() => changed()?.command.command === 'gitConvenient.openScmResource', 'the click redirected once turned on', 15000);
+	});
+
 	it('makes clicking a changed file in Source Control open the floating window', async function () {
 		this.timeout(30000);
+		await setting().update('openFromSourceControl', true, vscode.ConfigurationTarget.Global);
 		const repoDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-convenient-scm-')));
 		const git = (args: string) => execSync(`git ${args}`, { cwd: repoDir, stdio: 'ignore' });
 		git('init -q');
@@ -57,6 +95,7 @@ describe('Source Control redirect', () => {
 
 	it('does the same for a new (untracked) file', async function () {
 		this.timeout(30000);
+		await setting().update('openFromSourceControl', true, vscode.ConfigurationTarget.Global);
 		const repoDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-convenient-scm-new-')));
 		execSync('git init -q', { cwd: repoDir, stdio: 'ignore' });
 		const newFile = path.join(repoDir, 'new.txt');

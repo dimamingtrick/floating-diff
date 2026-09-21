@@ -4,6 +4,10 @@ import { placePopup } from '../../src/shared/popup';
 import type { FileChange, FileIcon, FileIconFont, RefLabel } from '../../src/shared/protocol';
 import { ChevronDown, SearchIcon } from './icons';
 
+export const MAC = navigator.userAgent.includes('Mac');
+/** WebStorm's Jump to Source: ⌘↓ on a Mac, Ctrl+↓ elsewhere. */
+export const isJumpToSource = (event: KeyboardEvent) => event.key === 'ArrowDown' && (MAC ? event.metaKey : event.ctrlKey);
+
 /** A branch or tag label; `color` tints a local branch like its graph lane. */
 export function RefBadge({ refLabel, color }: { refLabel: RefLabel; color?: string }) {
 	const text = refLabel.kind === 'head' && refLabel.name !== 'HEAD' ? `HEAD → ${refLabel.name}` : refLabel.name;
@@ -184,10 +188,22 @@ export function splitPath(path: string): { name: string; dir: string } {
 }
 
 /** One changed file: status, name, folder, +added −deleted. */
-export function FileRow(props: { file: FileChange; onOpen: () => void; indent?: number; selected?: boolean }) {
+export function FileRow(props: { file: FileChange; onOpen: () => void; onSource?: () => void; indent?: number; selected?: boolean }) {
 	const { name, dir } = splitPath(props.file.path);
+	const onSource = props.onSource;
 	return (
-		<button class={`row file-row ${props.selected ? 'sel' : ''}`} style={{ paddingLeft: `${12 + (props.indent ?? 0)}px` }} onClick={props.onOpen} title={props.file.oldPath ? `${props.file.oldPath} → ${props.file.path}` : props.file.path}>
+		<button
+			class={`row file-row ${props.selected ? 'sel' : ''}`}
+			style={{ paddingLeft: `${12 + (props.indent ?? 0)}px` }}
+			onClick={props.onOpen}
+			onKeyDown={onSource && (event => {
+				if (isJumpToSource(event)) {
+					event.preventDefault();
+					onSource();
+				}
+			})}
+			title={props.file.oldPath ? `${props.file.oldPath} → ${props.file.path}` : props.file.path}
+		>
 			<StatusLetter status={props.file.status} />
 			<span class="file-name">{name}</span>
 			<span class="grow ellipsis faint small">{props.indent === undefined ? dir : ''}</span>

@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { askBranchName } from '../branches/branchesPopup';
-import type { LogCommit } from '../data/parse';
+import type { FileChange, LogCommit } from '../data/parse';
 import type { DiffWindow } from '../diffWindow';
 import { layoutGraph } from '../graph/lanes';
 import type { RepoContext } from '../repoContext';
@@ -13,6 +13,15 @@ import type { FileIcon, LogAction, LogFilters, LogFromWebview, LogRow, LogToWebv
 export const PAGE = 20;
 const SINCE: Record<NonNullable<LogFilters['since']>, string> = { day: '1 day ago', week: '7 days ago', month: '30 days ago' };
 const short = (hash: string) => hash.slice(0, 7);
+
+async function exists(uri: vscode.Uri): Promise<boolean> {
+	try {
+		await vscode.workspace.fs.stat(uri);
+		return true;
+	} catch {
+		return false;
+	}
+}
 
 export interface LogSessionOptions {
 	/** Adds file icons to commit details. */
@@ -86,11 +95,28 @@ export class LogSession implements vscode.Disposable {
 				const parent = this.find(message.hash)?.parents[0];
 				return this.diffWindow.show(this.ctx.diffs.file(message.file, parent, message.hash, short(message.hash)));
 			}
+			case 'openSource':
+				return this.openSource(message.hash, message.file);
 			case 'openCommit':
 				return this.openCommit(message.hash);
 			case 'action':
 				return this.action(message.action, message.hash);
 		}
+	}
+
+	/**
+	 * WebStorm's Jump to Source: the file itself in an editor. A file the commit
+	 * removed, or one gone since, opens read-only as that commit had it.
+	 */
+	private async openSource(hash: string, file: FileChange): Promise<void> {
+		const working = vscode.Uri.joinPath(this.ctx.repository.rootUri, file.path);
+		const removed = file.status === 'D';
+		const uri = !removed && (await exists(working))
+			? working
+			: removed
+				? this.ctx.diffs.revision(file.oldPath ?? file.path, `${hash}^`)
+				: this.ctx.diffs.revision(file.path, hash);
+		await vscode.window.showTextDocument(uri, { preview: false });
 	}
 
 	private find(hash: string): LogCommit | undefined {

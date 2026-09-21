@@ -14,13 +14,12 @@ import type {
 	SidebarToWebview,
 } from '../../src/shared/protocol';
 import { buildFileTree, compactFolders, TreeNode } from '../../src/shared/fileTree';
-import { Dropdown, Empty, IconFonts, IconView } from '../common/components';
+import { Dropdown, Empty, IconFonts, IconView, isJumpToSource, MAC } from '../common/components';
 import { BranchIcon } from '../common/icons';
 import { getState, post, setState, useMessages, useRendered } from '../common/vscode';
 import { installTooltips } from '../common/tooltip';
 
 const send = (message: SidebarFromWebview) => post(message);
-const MAC = navigator.userAgent.includes('Mac');
 const MOD = MAC ? '⌘' : 'Ctrl+';
 const keyOf = (ref: ChangeRef) => `${ref.root}\n${ref.group}\n${ref.path}`;
 /** Rows indent like VS Code's trees: 8 px a level, then a 16 px slot for the chevron. */
@@ -405,7 +404,7 @@ function App() {
 		actOnAll: (action, refs) => send({ type: 'change', action, items: refs }),
 		keyDown: event => {
 			const index = rows.findIndex(item => keyOf(item) === (focused ?? anchor));
-			if (event.key === 'ArrowDown' && (MAC ? event.metaKey : event.ctrlKey)) {
+			if (isJumpToSource(event)) {
 				// ⌘↓ (Ctrl+↓ on Windows and Linux): the file itself in the editor, like WebStorm's Jump to Source.
 				event.preventDefault();
 				const current = rows[index];

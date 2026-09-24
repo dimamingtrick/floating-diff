@@ -131,3 +131,32 @@ export function branchActions(branch: BranchInfo, current: string): ActionItem[]
 	];
 	return items.filter((item): item is ActionItem => item !== false);
 }
+
+/** How to bring a branch up to date with its remote. */
+export type PullPlan =
+	/** The checked-out branch: Git's own Pull, which merges into the working tree. */
+	| { readonly kind: 'pull' }
+	/** Any other branch: `git fetch`, which moves the ref without checking it out. */
+	| { readonly kind: 'fetch'; readonly args: readonly string[] }
+	| { readonly kind: 'none'; readonly reason: string };
+
+/**
+ * Pull without checking the branch out, like WebStorm: fetching the remote
+ * branch into the local one fast-forwards it, and leaves the working tree alone.
+ */
+export function pullPlan(branch: BranchInfo): PullPlan {
+	if (branch.current) {
+		return { kind: 'pull' };
+	}
+	if (branch.remote) {
+		return { kind: 'fetch', args: ['fetch', branch.remote, localName(branch)] };
+	}
+	if (!branch.upstream) {
+		return { kind: 'none', reason: `"${branch.name}" has no upstream branch to pull from.` };
+	}
+	const slash = branch.upstream.indexOf('/');
+	if (slash <= 0) {
+		return { kind: 'none', reason: `"${branch.name}" tracks "${branch.upstream}", which is not a remote branch.` };
+	}
+	return { kind: 'fetch', args: ['fetch', branch.upstream.slice(0, slash), `${branch.upstream.slice(slash + 1)}:${branch.name}`] };
+}

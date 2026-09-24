@@ -8,8 +8,12 @@ describe('extension', () => {
 		await extension.activate();
 
 		const commands = await vscode.commands.getCommands(true);
-		for (const id of ['gitConvenient.openScmResource', 'gitConvenient.pickChange', 'gitConvenient.close', 'gitConvenient.branches', 'gitConvenient.log', 'gitConvenient.browseBranch', 'gitConvenient.fetch', 'gitConvenient.pull', 'gitConvenient.push', 'gitConvenient.toggleBranches', 'gitConvenient.viewAsTree', 'gitConvenient.viewAsList', 'gitConvenient.logInEditor', 'gitConvenient.fileHistory', 'gitConvenient.diffWithPrevious', 'gitConvenient.blame.openDiff', 'gitConvenient.blame.copyHash']) {
+		for (const id of ['gitConvenient.openScmResource', 'gitConvenient.pickChange', 'gitConvenient.close', 'gitConvenient.branches', 'gitConvenient.log', 'gitConvenient.browseBranch', 'gitConvenient.fetch', 'gitConvenient.pull', 'gitConvenient.push', 'gitConvenient.toggleBranches', 'gitConvenient.viewAsTree', 'gitConvenient.viewAsList', 'gitConvenient.logInEditor', 'gitConvenient.fileHistory', 'gitConvenient.diffWithPrevious', 'gitConvenient.blame.openDiff', 'gitConvenient.blame.copyHash', 'gitConvenient.branch.pull', 'gitConvenient.branch.checkout', 'gitConvenient.branch.merge', 'gitConvenient.branch.rebase', 'gitConvenient.branch.newBranch', 'gitConvenient.file.open', 'gitConvenient.file.copyPath', 'gitConvenient.changes.copyPath']) {
 			assert.ok(commands.includes(id), `${id} is registered`);
+		}
+		// Every command a menu can show: one that is only contributed does nothing when clicked.
+		for (const { command } of extension.packageJSON.contributes.commands as { command: string }[]) {
+			assert.ok(commands.includes(command), `${command} of package.json is registered`);
 		}
 	});
 

@@ -122,6 +122,61 @@ describe('DiffWindow', () => {
 		await waitFor(() => vscode.window.tabGroups.all.length === groupsBefore, 'the window is gone');
 	});
 
+	it('closes its window on Esc even when the file has unsaved changes', async () => {
+		win.dispose();
+		win = new DiffWindow({ keepWindow: false });
+		const req = diff('dirty.txt');
+		// The file is open and edited in the main window, as it is when its diff is opened to see those edits.
+		const document = await vscode.workspace.openTextDocument(req.right);
+		await vscode.window.showTextDocument(document, { viewColumn: vscode.ViewColumn.One });
+		const edit = new vscode.WorkspaceEdit();
+		edit.insert(req.right, new vscode.Position(0, 0), 'unsaved\n');
+		assert.ok(await vscode.workspace.applyEdit(edit), 'the edit applied');
+		assert.ok(document.isDirty, 'the file has unsaved changes');
+		await win.show(req);
+		await waitFor(() => vscode.window.tabGroups.all.length === groupsBefore + 1, 'new group');
+
+		await win.dismiss();
+
+		await waitFor(() => vscode.window.tabGroups.all.length === groupsBefore, 'the window is gone');
+		await vscode.window.showTextDocument(document, { viewColumn: vscode.ViewColumn.One });
+		await vscode.commands.executeCommand('workbench.action.files.revert');
+		await waitFor(() => !document.isDirty, 'the edit reverted for the next tests');
+	});
+
+	it('gives the focus back to the view the diff was opened from', async () => {
+		win.dispose();
+		win = new DiffWindow({ keepWindow: false });
+		let returned = 0;
+		await win.show(diff('back.txt'), { returnFocus: async () => { returned += 1; } });
+		await waitFor(() => vscode.window.tabGroups.all.length === groupsBefore + 1, 'new group');
+
+		await win.dismiss();
+
+		await waitFor(() => returned === 1, 'the view got the focus back');
+		// A diff opened from somewhere else does not send the focus there again.
+		await win.show(diff('back2.txt'));
+		await win.dismiss();
+		await new Promise(resolve => setTimeout(resolve, 300));
+		assert.strictEqual(returned, 1, 'only the view that opened the diff is focused');
+	});
+
+	it('gives the focus back when the window is closed by its button', async () => {
+		win.dispose();
+		win = new DiffWindow({ keepWindow: false });
+		let returned = 0;
+		const req = diff('x-button.txt');
+		await win.show(req, { returnFocus: async () => { returned += 1; } });
+		await waitFor(() => vscode.window.tabGroups.all.length === groupsBefore + 1, 'new group');
+
+		// What the window's close button does: its editors move to the main window.
+		await new Promise(resolve => setTimeout(resolve, 800));
+		await vscode.commands.executeCommand('workbench.action.restoreEditorsToMainWindow');
+
+		await waitFor(() => returned === 1, 'the view got the focus back', 10000);
+		await waitFor(() => !vscode.window.tabGroups.all.some(g => g.tabs.some(t => tabMatches(t, req))), 'no diff left in the main window');
+	});
+
 	it('keeps its window on Esc when asked to, and shows the next diff in it', async () => {
 		win.dispose();
 		win = new DiffWindow({ keepWindow: true });

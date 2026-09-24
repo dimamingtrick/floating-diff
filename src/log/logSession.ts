@@ -6,6 +6,7 @@ import type { DiffWindow } from '../diffWindow';
 import { layoutGraph } from '../graph/lanes';
 import type { RepoContext } from '../repoContext';
 import { reportError, runWithProgress } from '../report';
+import { revealLine } from '../reveal';
 import * as pathSearch from '../shared/pathSearch';
 import type { FileIcon, LogAction, LogFilters, LogFromWebview, LogRow, LogToWebview, PathItem } from '../shared/protocol';
 
@@ -28,6 +29,8 @@ export interface LogSessionOptions {
 	readonly fileIcon?: (fileName: string) => FileIcon | undefined;
 	/** Adds the branches that contain a commit to its details. */
 	readonly containingBranches?: boolean;
+	/** Focuses the view again when the diff window this log opened closes. */
+	readonly returnFocus?: () => Thenable<unknown> | void;
 }
 
 /**
@@ -93,7 +96,7 @@ export class LogSession implements vscode.Disposable {
 				return this.load();
 			case 'openFile': {
 				const parent = this.find(message.hash)?.parents[0];
-				return this.diffWindow.show(this.ctx.diffs.file(message.file, parent, message.hash, short(message.hash)));
+				return this.diffWindow.show(this.ctx.diffs.file(message.file, parent, message.hash, short(message.hash)), this.showOptions());
 			}
 			case 'openSource':
 				return this.openSource(message.hash, message.file);
@@ -116,7 +119,17 @@ export class LogSession implements vscode.Disposable {
 			: removed
 				? this.ctx.diffs.revision(file.oldPath ?? file.path, `${hash}^`)
 				: this.ctx.diffs.revision(file.path, hash);
-		await vscode.window.showTextDocument(uri, { preview: false });
+		const editor = await vscode.window.showTextDocument(uri, { preview: false });
+		// On the first line the commit changed, so it needs no hunting.
+		const line = await this.ctx.data.firstChangedLine(file.path, { from: this.find(hash)?.parents[0], to: hash });
+		if (line !== undefined) {
+			revealLine(editor, line);
+		}
+	}
+
+	/** Hands the focus back to the view this log runs in when the diff window closes. */
+	private showOptions(): { returnFocus?: () => Thenable<unknown> | void } {
+		return { returnFocus: this.options.returnFocus };
 	}
 
 	private find(hash: string): LogCommit | undefined {
@@ -227,7 +240,7 @@ export class LogSession implements vscode.Disposable {
 		const { files } = await this.ctx.data.commit(hash, commit?.parents[0]);
 		const req = this.ctx.diffs.files(files, commit?.parents[0], hash, `${short(hash)} ${commit?.subject ?? ''}`.trim());
 		if (req) {
-			await this.diffWindow.show(req);
+			await this.diffWindow.show(req, this.showOptions());
 		} else {
 			void vscode.window.showInformationMessage('Git Convenient: this commit changes no files.');
 		}

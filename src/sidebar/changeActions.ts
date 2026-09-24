@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import type { DiffWindow } from '../diffWindow';
 import { API, Repository, RepositoryOperations, Status } from '../git';
+import { createGitRunner } from '../branches/gitRunner';
+import { GitData } from '../data/gitData';
 import { indexRenameOf } from '../gitChanges';
+import { revealLine } from '../reveal';
 import { ChangeDeps, ChangeResource, fromChange } from '../openRequest';
 import type { GitInternals, GitRepository } from '../scmRedirect';
 import type { ChangeGroupKind, ChangeRow } from './sidebarModel';
@@ -45,6 +48,8 @@ export class ChangeActions {
 		private readonly api: API,
 		private readonly diffWindow: DiffWindow,
 		private readonly scm: GitInternals | undefined,
+		/** Focuses the view again when the diff window closes, so the keyboard stays on the file. */
+		private readonly returnFocus?: () => Thenable<unknown> | void,
 	) { }
 
 	/** Git's own Source Control resource for a file, which its commands require; undefined without Git's internals. */
@@ -92,12 +97,33 @@ export class ChangeActions {
 		return this.runGit(repository, 'git.ignore', rows.filter(row => row.group !== 'index'), async () => undefined);
 	}
 
-	openFiles(repository: Repo, rows: readonly ChangeRow[]): Promise<void> {
-		return this.runGit(repository, 'git.openFile', rows, async () => {
+	async openFiles(repository: Repo, rows: readonly ChangeRow[]): Promise<void> {
+		await this.runGit(repository, 'git.openFile', rows, async () => {
 			for (const row of rows.filter(candidate => !DELETED.has(candidate.change.status))) {
 				await vscode.window.showTextDocument(row.change.uri, { preview: false });
 			}
 		});
+		await this.revealFirstChanges(repository, rows);
+	}
+
+	/** On the first change of each file that opened, so it needs no hunting. */
+	private async revealFirstChanges(repository: Repo, rows: readonly ChangeRow[]): Promise<void> {
+		const data = new GitData(createGitRunner(this.api.git.path, repository.rootUri.fsPath));
+		for (const row of rows) {
+			const editor = vscode.window.visibleTextEditors.find(candidate => candidate.document.uri.fsPath === row.change.uri.fsPath);
+			const line = editor && (await data.firstChangedLine(row.path).catch(() => undefined));
+			if (editor && line !== undefined) {
+				revealLine(editor, line);
+			}
+		}
+	}
+
+	/** The paths from the repository root, one per line, like VS Code's Copy Relative Path. */
+	async copyPaths(paths: readonly string[]): Promise<void> {
+		if (paths.length > 0) {
+			await vscode.env.clipboard.writeText(paths.join('\n'));
+			vscode.window.setStatusBarMessage(`Git Convenient: copied ${paths.length === 1 ? paths[0] : `${paths.length} paths`}`, 2000);
+		}
 	}
 
 	async reveal(rows: readonly ChangeRow[]): Promise<void> {
@@ -145,7 +171,7 @@ export class ChangeActions {
 		}
 		const req = fromChange(row.change, this.deps(repository));
 		if (req) {
-			await this.diffWindow.show(req);
+			await this.diffWindow.show(req, { returnFocus: this.returnFocus });
 			return;
 		}
 		// A merge conflict: whatever Git does on click (the merge editor or the file).
@@ -172,7 +198,7 @@ export class ChangeActions {
 			return [];
 		});
 		if (resources.length > 0) {
-			await this.diffWindow.show({ kind: 'changes', title, resources });
+			await this.diffWindow.show({ kind: 'changes', title, resources }, { returnFocus: this.returnFocus });
 		}
 	}
 }

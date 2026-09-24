@@ -3,6 +3,7 @@ import type { GitRunError, GitRunner } from '../branches/gitRunner';
 import {
 	FileChange, GrepHit, LOG_FORMAT, LogCommit, mergeFileStats, parseAheadBehind, parseGrep, parseLog, parseLsTree, parseNameStatus, parseNumstat,
 } from './parse';
+import { firstHunkLine } from './hunks';
 import { FileRevision, parseFileRevisions, REVISION_FORMAT } from './revisions';
 
 export interface LogFilter {
@@ -117,6 +118,22 @@ export class GitData {
 			this.git(['diff-tree', '-r', '-M', '-z', '--no-commit-id', '--numstat', ...range]),
 		]);
 		return { body: body.trim(), files: mergeFileStats(parseNameStatus(nameStatus), parseNumstat(numstat)) };
+	}
+
+	/**
+	 * The line of the first change of a file, so opening it can jump there:
+	 * of a commit with `range`, else of the working tree (its staged changes
+	 * when the file is only staged). Undefined when nothing changed.
+	 */
+	async firstChangedLine(path: string, range?: { readonly from?: string; readonly to: string }): Promise<number | undefined> {
+		const diff = async (args: readonly string[]) => firstHunkLine(await this.git([...args, '--', path]).catch(() => ''));
+		if (range) {
+			// A root commit has no parent to diff against.
+			return range.from
+				? diff(['diff', '-U0', '--no-color', '--end-of-options', range.from, range.to])
+				: diff(['show', '-U0', '--no-color', '--format=', '--end-of-options', range.to]);
+		}
+		return (await diff(['diff', '-U0', '--no-color'])) ?? (await diff(['diff', '-U0', '--no-color', '--cached']));
 	}
 
 	/** The files Git tracks in the working tree, for the log's Paths filter. */

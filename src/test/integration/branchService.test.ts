@@ -135,4 +135,27 @@ describe('BranchService', function () {
 
 		assert.ok(fs.existsSync(path.join(work, 'b.txt')));
 	});
+
+	it('pulls a branch that is not checked out, without touching the working tree', async () => {
+		// A commit someone else pushed to origin/feature.
+		const other = path.join(path.dirname(work), 'other');
+		git(path.dirname(work), 'clone', '-q', '-b', 'feature', path.join(path.dirname(work), 'origin.git'), other);
+		git(other, 'config', 'user.email', 'other@example.com');
+		git(other, 'config', 'user.name', 'Other');
+		fs.writeFileSync(path.join(other, 'c.txt'), 'c\n');
+		git(other, 'add', 'c.txt');
+		git(other, 'commit', '-qm', 'from elsewhere');
+		git(other, 'push', '-q', 'origin', 'feature');
+		const pushed = git(other, 'rev-parse', 'HEAD').trim();
+
+		await service.pull(await branch('feature'));
+
+		assert.strictEqual(git(work, 'rev-parse', 'feature').trim(), pushed, 'feature moved to the pushed commit');
+		assert.strictEqual(git(work, 'rev-parse', '--abbrev-ref', 'HEAD').trim(), 'main', 'still on main');
+		assert.ok(!fs.existsSync(path.join(work, 'c.txt')), 'the working tree is untouched');
+	});
+
+	it('says why a branch without an upstream cannot be pulled', async () => {
+		await assert.rejects(() => service.pull({ name: 'new-one', ahead: 0, behind: 0, current: false, merged: false }), /no upstream/);
+	});
 });

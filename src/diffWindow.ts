@@ -130,6 +130,11 @@ export interface DiffWindowOptions {
   readonly state?: DiffWindowState;
 }
 
+export interface ShowOptions {
+  /** Focuses the view the diff is opened from again once the window closes. */
+  readonly returnFocus?: () => Thenable<unknown> | void;
+}
+
 /** One reusable floating window that shows a single diff at a time. */
 export class DiffWindow implements vscode.Disposable {
   private group: vscode.TabGroup | undefined;
@@ -144,6 +149,8 @@ export class DiffWindow implements vscode.Disposable {
   private idle: vscode.WebviewPanel | undefined;
   /** Shows run one after another, so a double click cannot open two windows. */
   private queue: Promise<void> = Promise.resolve();
+  /** Focuses the view the shown diff was opened from, when the window closes. */
+  private returnFocus: (() => Thenable<unknown> | void) | undefined;
   private readonly subscriptions: vscode.Disposable[];
 
   constructor(private readonly options: DiffWindowOptions = {}) {
@@ -162,6 +169,7 @@ export class DiffWindow implements vscode.Disposable {
           this.idle?.dispose();
           if (shown && e.opened.length === 0) {
             void this.closeMoved(shown);
+            void this.focusOpener();
           }
         }
         this.sync();
@@ -201,10 +209,32 @@ export class DiffWindow implements vscode.Disposable {
     return this.group;
   }
 
-  show(req: OpenRequest): Promise<void> {
+  /**
+   * Shows `req` in the window. `returnFocus` is the view the diff was opened
+   * from: closing the window hands the focus back to it, so the keyboard keeps
+   * working where the user left off. Every show sets it, so a diff opened
+   * elsewhere never focuses the previous one's view.
+   */
+  show(req: OpenRequest, options: ShowOptions = {}): Promise<void> {
+    this.returnFocus = options.returnFocus;
     const shown = this.queue.then(() => (req.kind === "changes" ? this.showChanges(req) : this.showSingle(req)));
     this.queue = shown.catch(() => undefined);
     return shown;
+  }
+
+  /** Hands the focus back to the view the diff was opened from, once. */
+  private async focusOpener(): Promise<void> {
+    const focus = this.returnFocus;
+    this.returnFocus = undefined;
+    if (!focus) {
+      return;
+    }
+    // The view may be gone by now: its window closing is what closed ours.
+    try {
+      await focus();
+    } catch (error) {
+      this.log(`focusing back failed: ${String(error)}`);
+    }
   }
 
   private async showSingle(req: SingleRequest): Promise<void> {
@@ -273,7 +303,7 @@ export class DiffWindow implements vscode.Disposable {
         // Esc was pressed in our window, so it is the frontmost one right now.
         await this.options.sizeMemory?.remember();
       }
-      await this.closeTabs(req, group.viewColumn, false);
+      await this.closeTabs(req, group.viewColumn, { preserveFocus: false, unsaved: true });
     }
     this.idle?.dispose();
     // With `workbench.editor.closeEmptyGroups: false` the empty group, and so the window, stays open.
@@ -281,6 +311,7 @@ export class DiffWindow implements vscode.Disposable {
     if (left && left.tabs.length === 0) {
       await vscode.window.tabGroups.close(left).then(undefined, (error: unknown) => this.log(`closing the window failed: ${String(error)}`));
     }
+    await this.focusOpener();
   }
 
   /** Esc: closes the window, or puts the main window in front of the window it keeps. */
@@ -291,7 +322,9 @@ export class DiffWindow implements vscode.Disposable {
       return;
     }
     await this.showIdle(group);
-    if (!(await this.focusMainWindow())) {
+    if (await this.focusMainWindow()) {
+      await this.focusOpener();
+    } else {
       await this.close();
     }
   }
@@ -320,7 +353,7 @@ export class DiffWindow implements vscode.Disposable {
     this.current = undefined;
     this.remember(undefined);
     if (req) {
-      await this.closeTabs(req, group.viewColumn);
+      await this.closeTabs(req, group.viewColumn, { unsaved: true });
     }
   }
 
@@ -518,12 +551,15 @@ export class DiffWindow implements vscode.Disposable {
   /**
    * Closes the tabs showing `req` in the group at `viewColumn` (all groups when
    * undefined), looked up now: Cursor makes new tab objects when editors move
-   * between windows, and closing an old one fails.
+   * between windows, and closing an old one fails. Tabs with unsaved changes
+   * stay unless `unsaved` is set — the user asked for the window to go, and
+   * the editor still asks about the changes when nothing else shows them.
    */
-  private async closeTabs(req: OpenRequest, viewColumn: vscode.ViewColumn | undefined, preserveFocus = true): Promise<void> {
+  private async closeTabs(req: OpenRequest, viewColumn: vscode.ViewColumn | undefined, options: { preserveFocus?: boolean; unsaved?: boolean } = {}): Promise<void> {
+    const { preserveFocus = true, unsaved = false } = options;
     const tabs = vscode.window.tabGroups.all
       .filter((g) => viewColumn === undefined || g.viewColumn === viewColumn)
-      .flatMap((g) => g.tabs.filter((t) => tabMatches(t, req) && !t.isDirty));
+      .flatMap((g) => g.tabs.filter((t) => tabMatches(t, req) && (unsaved || !t.isDirty)));
     if (tabs.length > 0) {
       await vscode.window.tabGroups.close(tabs, preserveFocus).then(undefined, (error: unknown) => this.log(`closing "${req.title}" failed: ${String(error)}`));
     }

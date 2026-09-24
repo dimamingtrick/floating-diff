@@ -180,4 +180,35 @@ describe('Git Convenient sidebar', function () {
 		await vscode.commands.executeCommand('gitConvenient.changes.unstageAll', { webviewSection: 'changeGroup', root: first.dir, gitConvenientGroup: 'index' });
 		await waitFor(() => staged().length === 0, 'unstaged again');
 	});
+
+	it('puts the cursor on the first change when it opens a file', async () => {
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		first.write('long.ts', Array.from({ length: 40 }, (_, i) => `const line${i + 1} = ${i + 1};`).join('\n') + '\n');
+		first.git('add', 'long.ts');
+		first.git('commit', '-qm', 'long file');
+		first.write('long.ts', Array.from({ length: 40 }, (_, i) => `const line${i + 1} = ${i === 24 ? 999 : i + 1};`).join('\n') + '\n');
+		await repository.status();
+		await waitFor(() => repoState(first)?.groups.some(group => group.files.some(file => file.path === 'long.ts')) === true, 'long.ts listed');
+
+		await sidebar.handle({ type: 'change', action: 'openFile', items: [ref(first, 'workingTree', 'long.ts')] });
+
+		await waitFor(() => vscode.window.activeTextEditor?.document.uri.path.endsWith('long.ts') === true, 'long.ts in an editor', 10000);
+		await waitFor(() => vscode.window.activeTextEditor?.selection.active.line === 24, 'the cursor on the changed line', 10000);
+	});
+
+	it('copies the relative paths of the selected files from the context menu', async () => {
+		await sidebar.handle({ type: 'select', items: [ref(first, 'workingTree', 'src/deep/c.ts'), ref(first, 'workingTree', 'a.ts')] });
+
+		await vscode.commands.executeCommand('gitConvenient.changes.copyPath', { webviewSection: 'change', root: first.dir, gitConvenientGroup: 'workingTree', path: 'a.ts' });
+
+		assert.strictEqual(await vscode.env.clipboard.readText(), 'src/deep/c.ts\na.ts');
+	});
+
+	it('copies only the clicked file when it is outside the selection', async () => {
+		await sidebar.handle({ type: 'select', items: [ref(first, 'workingTree', 'a.ts')] });
+
+		await vscode.commands.executeCommand('gitConvenient.changes.copyPath', { webviewSection: 'change', root: first.dir, gitConvenientGroup: 'workingTree', path: 'src/deep/c.ts' });
+
+		assert.strictEqual(await vscode.env.clipboard.readText(), 'src/deep/c.ts');
+	});
 });

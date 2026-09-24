@@ -53,6 +53,8 @@ function Splitter({ onDrag, axis = 'x' }: { onDrag: (delta: number) => void; axi
 interface TreeProps {
 	readonly selected?: string;
 	readonly filtering: boolean;
+	/** The repository the panel shows; the context menu commands need it. */
+	readonly root?: string;
 	readonly isCollapsed: (key: string) => boolean;
 	readonly toggle: (key: string) => void;
 	readonly pick: (branch: string) => void;
@@ -79,6 +81,8 @@ function BranchNodes({ nodes, depth, scope, tree }: { nodes: readonly BranchTree
 				const item = node.item!;
 				const tag = scope === 'tags';
 				const icon = tag ? 'tag' : item.current ? 'git-branch' : item.favorite ? 'star-full' : 'git-branch';
+				// VS Code's context menu with the branch actions (webview/context), like WebStorm's; tags have none.
+				const context = tag ? undefined : { webviewSection: 'branch', branch: node.path, root: tree.root, gitConvenientCurrent: item.current, preventDefaultContextMenuItems: true };
 				return (
 					<div
 						key={node.path}
@@ -86,6 +90,7 @@ function BranchNodes({ nodes, depth, scope, tree }: { nodes: readonly BranchTree
 						style={indent(depth)}
 						role="treeitem"
 						aria-selected={tree.selected === node.path}
+						data-vscode-context={context && JSON.stringify(context)}
 						title={item.current ? `${node.path} (current branch)` : node.path}
 						onClick={() => tree.pick(node.path)}
 					>
@@ -118,6 +123,7 @@ function BranchPane({ branches, data, ui }: { branches?: GitPanelBranches; data?
 	const tree: TreeProps = {
 		selected: data?.filters.branch,
 		filtering: needle !== '',
+		root: branches?.root,
 		isCollapsed: ui.isCollapsed,
 		toggle: ui.toggle,
 		pick: branch => data && send({ type: 'filters', filters: { ...data.filters, branch } }),
@@ -250,9 +256,11 @@ function FileLine(props: { file: FileChange; icon?: FileIcon; depth: number; has
 			role="treeitem"
 			aria-selected={selected}
 			tabIndex={0}
+			data-vscode-context={JSON.stringify({ webviewSection: 'commitFile', hash, path: file.path, file, preventDefaultContextMenuItems: true })}
 			title={file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
 			// A click selects; the diff takes a double click (or Enter), like Changes.
 			onClick={props.select}
+			onContextMenu={props.select}
 			onDblClick={open}
 			onKeyDown={event => {
 				if (isJumpToSource(event)) {

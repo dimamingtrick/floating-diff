@@ -34,6 +34,8 @@ export class LogPanel implements vscode.Disposable {
 	private readonly panel: vscode.WebviewPanel;
 	private readonly session: LogSession;
 	private readonly subscriptions: vscode.Disposable[] = [];
+	/** A closed tab cannot be revealed or posted to. */
+	private disposed = false;
 
 	private constructor(extensionUri: vscode.Uri, ctx: RepoContext, diffWindow: DiffWindow, filters: LogFilters) {
 		this.panel = vscode.window.createWebviewPanel('gitConvenient.log', 'Git Log', diffWindow.editorColumn(), {
@@ -42,7 +44,15 @@ export class LogPanel implements vscode.Disposable {
 		});
 		this.panel.webview.html = webviewHtml(this.panel.webview, extensionUri, 'log', 'Git Log');
 		this.channel = new WebviewChannel(this.panel.webview, message => this.handle(message), reportError);
-		this.session = new LogSession(ctx, diffWindow, message => this.channel.post(message), filters);
+		this.session = new LogSession(ctx, diffWindow, message => this.channel.post(message), filters, {
+			returnFocus: () => {
+				if (this.disposed) {
+					return undefined;
+				}
+				this.panel.reveal();
+				return this.channel.post({ type: 'focus' });
+			},
+		});
 		this.subscriptions.push(this.channel, this.session, this.panel.onDidDispose(() => this.dispose()));
 	}
 
@@ -55,6 +65,7 @@ export class LogPanel implements vscode.Disposable {
 	}
 
 	dispose(): void {
+		this.disposed = true;
 		if (LogPanel.current === this) {
 			LogPanel.current = undefined;
 		}

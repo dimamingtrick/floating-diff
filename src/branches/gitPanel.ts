@@ -71,6 +71,15 @@ export class GitPanel implements vscode.WebviewViewProvider, vscode.Disposable {
 		this.updateItem();
 	}
 
+	/**
+	 * Back to the file the diff was opened from: the panel, then the row itself,
+	 * so `⌘↓` and the arrows work where the user left off.
+	 */
+	async focusFiles(): Promise<void> {
+		await vscode.commands.executeCommand(`${GitPanel.viewId}.focus`);
+		await this.channel?.post({ type: 'focus' });
+	}
+
 	/** The branches the panel shows now (tests read them). */
 	snapshot(): GitPanelBranches | undefined {
 		return this.last;
@@ -183,6 +192,7 @@ export class GitPanel implements vscode.WebviewViewProvider, vscode.Disposable {
 		this.session = new LogSession(createRepoContext(this.api, repository), this.diffWindow, message => channel.post(message), filters ?? {}, {
 			fileIcon: name => (this.view ? this.icons.icon(name, this.view.webview) : undefined),
 			containingBranches: true,
+			returnFocus: () => this.focusFiles(),
 		});
 		this.updateTitle();
 		void this.refreshBranches();

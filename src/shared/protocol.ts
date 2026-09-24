@@ -74,7 +74,9 @@ export type LogToWebview =
 	| { readonly type: 'details'; readonly details: CommitDetails }
 	| { readonly type: 'busy'; readonly busy: boolean }
 	/** The files and folders that match `query`; the filtered ones for an empty query. */
-	| { readonly type: 'paths'; readonly query: string; readonly items: readonly PathItem[] };
+	| { readonly type: 'paths'; readonly query: string; readonly items: readonly PathItem[] }
+	/** The diff window closed: put the keyboard back on the row it was opened from. */
+	| { readonly type: 'focus' };
 
 export type LogAction = 'cherryPick' | 'revert' | 'copyHash' | 'checkout' | 'newBranch' | 'merge' | 'rebase';
 
@@ -247,7 +249,9 @@ export type SidebarToWebview =
 	| { readonly type: 'state'; readonly state: SidebarState }
 	| { readonly type: 'busy'; readonly label?: string }
 	/** The commit message of a repository, shared with the box in Source Control. */
-	| { readonly type: 'draft'; readonly root: string; readonly value: string };
+	| { readonly type: 'draft'; readonly root: string; readonly value: string }
+	/** The diff window closed: put the keyboard back on the file it was opened from. */
+	| { readonly type: 'focus' };
 
 export type SidebarFromWebview =
 	| CommonFromWebview

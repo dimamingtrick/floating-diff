@@ -335,6 +335,15 @@ export function Details(props: { row?: LogRow; details?: CommitDetails; asTree: 
 }
 
 /** What a log view keeps: the rows (searched), the selected commit and its details. */
+/**
+ * Back on the row the diff window was opened from — the file of the commit, else
+ * the commit itself — so the keyboard keeps working where the user left off.
+ */
+export function focusSelectedRow(): void {
+	const row = document.querySelector<HTMLElement>('.gp-file.sel') ?? document.querySelector<HTMLElement>('.crow.sel');
+	row?.focus();
+}
+
 export function useLogState() {
 	const [data, setData] = useState<LogData>();
 	const [details, setDetails] = useState<CommitDetails>();
@@ -351,6 +360,8 @@ export function useLogState() {
 			setDetails(message.details);
 		} else if (message.type === 'paths') {
 			setPaths({ query: message.query, items: message.items });
+		} else if (message.type === 'focus') {
+			focusSelectedRow();
 		} else {
 			setBusy(message.busy);
 		}

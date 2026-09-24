@@ -2,7 +2,7 @@
   "name": "git-convenient",
   "displayName": "Git Convenient",
   "description": "WebStorm-style Git: diffs in a floating window, line blame, diffs back through a file's history, branches popup, Git Log with a graph, Git Convenient panel.",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "DimaShraho",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -241,6 +241,46 @@
         "command": "gitConvenient.commit.newBranch",
         "title": "New Branch…",
         "category": "Git Convenient"
+      },
+      {
+        "command": "gitConvenient.branch.pull",
+        "title": "Pull into This Branch",
+        "category": "Git Convenient"
+      },
+      {
+        "command": "gitConvenient.branch.checkout",
+        "title": "Checkout",
+        "category": "Git Convenient"
+      },
+      {
+        "command": "gitConvenient.branch.merge",
+        "title": "Merge into Current Branch",
+        "category": "Git Convenient"
+      },
+      {
+        "command": "gitConvenient.branch.rebase",
+        "title": "Rebase Current Branch onto This Branch",
+        "category": "Git Convenient"
+      },
+      {
+        "command": "gitConvenient.branch.newBranch",
+        "title": "New Branch from This Branch…",
+        "category": "Git Convenient"
+      },
+      {
+        "command": "gitConvenient.file.open",
+        "title": "Open File",
+        "category": "Git Convenient"
+      },
+      {
+        "command": "gitConvenient.file.copyPath",
+        "title": "Copy Relative Path",
+        "category": "Git Convenient"
+      },
+      {
+        "command": "gitConvenient.changes.copyPath",
+        "title": "Copy Relative Path",
+        "category": "Git Convenient"
       }
     ],
     "viewsContainers": {
@@ -399,6 +439,38 @@
         {
           "command": "gitConvenient.commit.newBranch",
           "when": "false"
+        },
+        {
+          "command": "gitConvenient.branch.pull",
+          "when": "false"
+        },
+        {
+          "command": "gitConvenient.branch.checkout",
+          "when": "false"
+        },
+        {
+          "command": "gitConvenient.branch.merge",
+          "when": "false"
+        },
+        {
+          "command": "gitConvenient.branch.rebase",
+          "when": "false"
+        },
+        {
+          "command": "gitConvenient.branch.newBranch",
+          "when": "false"
+        },
+        {
+          "command": "gitConvenient.file.open",
+          "when": "false"
+        },
+        {
+          "command": "gitConvenient.file.copyPath",
+          "when": "false"
+        },
+        {
+          "command": "gitConvenient.changes.copyPath",
+          "when": "false"
         }
       ],
       "scm/resourceState/context": [
@@ -492,6 +564,11 @@
           "group": "2_view@1"
         },
         {
+          "command": "gitConvenient.changes.copyPath",
+          "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'change' && gitConvenientGroup =~ /^(merge|index|workingTree|untracked)$/",
+          "group": "2_view@2"
+        },
+        {
           "command": "gitConvenient.changes.viewGroup",
           "when": "webviewId == 'gitConvenient.sidebar' && webviewSection == 'changeGroup' && gitConvenientGroup =~ /^(index|workingTree|untracked)$/",
           "group": "navigation@1"
@@ -570,6 +647,41 @@
           "command": "gitConvenient.commit.newBranch",
           "when": "(webviewId == 'gitConvenient.branchesPanel' || webviewId == 'gitConvenient.log') && webviewSection == 'commit'",
           "group": "4_new@1"
+        },
+        {
+          "command": "gitConvenient.branch.pull",
+          "when": "webviewId == 'gitConvenient.branchesPanel' && webviewSection == 'branch'",
+          "group": "1_update@1"
+        },
+        {
+          "command": "gitConvenient.branch.checkout",
+          "when": "webviewId == 'gitConvenient.branchesPanel' && webviewSection == 'branch' && !gitConvenientCurrent",
+          "group": "2_checkout@1"
+        },
+        {
+          "command": "gitConvenient.branch.merge",
+          "when": "webviewId == 'gitConvenient.branchesPanel' && webviewSection == 'branch' && !gitConvenientCurrent",
+          "group": "3_integrate@1"
+        },
+        {
+          "command": "gitConvenient.branch.rebase",
+          "when": "webviewId == 'gitConvenient.branchesPanel' && webviewSection == 'branch' && !gitConvenientCurrent",
+          "group": "3_integrate@2"
+        },
+        {
+          "command": "gitConvenient.branch.newBranch",
+          "when": "webviewId == 'gitConvenient.branchesPanel' && webviewSection == 'branch'",
+          "group": "4_new@1"
+        },
+        {
+          "command": "gitConvenient.file.open",
+          "when": "webviewId == 'gitConvenient.branchesPanel' && webviewSection == 'commitFile'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gitConvenient.file.copyPath",
+          "when": "webviewId == 'gitConvenient.branchesPanel' && webviewSection == 'commitFile'",
+          "group": "1_copy@1"
         }
       ]
     },

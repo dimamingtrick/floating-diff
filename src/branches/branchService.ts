@@ -1,7 +1,7 @@
 import type { Uri } from 'vscode';
 import { Change, Repository, RepositoryOperations, Status } from '../git';
 import type { ChangeResource, OpenRequest } from '../openRequest';
-import { BranchInfo, FOR_EACH_REF_FORMAT, localName, parseBranches, parseLines, parseRecent } from './branchModel';
+import { BranchInfo, FOR_EACH_REF_FORMAT, localName, parseBranches, parseLines, parseRecent, pullPlan } from './branchModel';
 import type { GitRunner } from './gitRunner';
 
 export interface BranchList {
@@ -63,6 +63,27 @@ export class BranchService {
 	async rebaseOnto(branch: BranchInfo): Promise<void> {
 		try {
 			await this.git(['rebase', branch.name]);
+		} finally {
+			await this.repository.status();
+		}
+	}
+
+	/**
+	 * Brings a branch up to date without checking it out: fetching its upstream
+	 * into it fast-forwards the local ref and leaves the working tree alone.
+	 * The checked-out branch pulls the usual way, since its files move too.
+	 */
+	async pull(branch: BranchInfo): Promise<void> {
+		const plan = pullPlan(branch);
+		if (plan.kind === 'none') {
+			throw new Error(plan.reason);
+		}
+		if (plan.kind === 'pull') {
+			await this.repository.pull();
+			return;
+		}
+		try {
+			await this.git(plan.args);
 		} finally {
 			await this.repository.status();
 		}

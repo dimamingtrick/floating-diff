@@ -304,6 +304,9 @@ function App() {
 			setAppState(message.state);
 		} else if (message.type === 'busy') {
 			setBusy(message.label);
+		} else if (message.type === 'focus') {
+			// The diff window closed: back on its file, so ⌘↓ and the arrows work from there.
+			document.querySelector<HTMLElement>('.scm-file[tabindex="0"]')?.focus();
 		} else {
 			// A new object, so the box takes it even when the text is unchanged.
 			setDrafts(current => ({ ...current, [message.root]: { value: message.value } }));
@@ -456,8 +459,8 @@ function App() {
 						{open && (
 							<>
 								<BranchCard repo={repo} />
-								<ChangeList repo={repo} list={list} />
 								{(!multi || repo.changeCount > 0) && <CommitBox repo={repo} busy={busy !== undefined} draft={drafts[repo.root]} />}
+								<ChangeList repo={repo} list={list} />
 							</>
 						)}
 					</section>

@@ -13,7 +13,7 @@ import { ChangeGroupKind, changeGroups, ChangeRow, changesBadge, CountSettings, 
 
 type Repo = Repository & RepositoryOperations;
 export type SyncAction = 'fetch' | 'pull' | 'push';
-type FileAction = ChangeAction | 'ignore' | 'reveal';
+type FileAction = ChangeAction | 'ignore' | 'reveal' | 'copyPath';
 type ViewMode = SidebarState['viewMode'];
 
 const SYNC_TITLES: Record<SyncAction, string> = { fetch: 'Fetching', pull: 'Pulling', push: 'Pushing' };
@@ -64,7 +64,7 @@ export class Sidebar implements vscode.WebviewViewProvider, vscode.Disposable {
 		scm: GitInternals | undefined,
 		private readonly workspaceState: vscode.Memento,
 	) {
-		this.actions = new ChangeActions(api, diffWindow, scm);
+		this.actions = new ChangeActions(api, diffWindow, scm, () => this.focusFiles());
 		// A tree by default, like WebStorm's "Group by Directory", unless scm.defaultViewMode is set.
 		const configured = vscode.workspace.getConfiguration('scm').inspect<ViewMode>('defaultViewMode');
 		this.viewMode =
@@ -87,6 +87,7 @@ export class Sidebar implements vscode.WebviewViewProvider, vscode.Disposable {
 			command('gitConvenient.changes.discard', onFile('discard')),
 			command('gitConvenient.changes.ignore', onFile('ignore')),
 			command('gitConvenient.changes.reveal', onFile('reveal')),
+			command('gitConvenient.changes.copyPath', onFile('copyPath')),
 			command('gitConvenient.changes.viewGroup', onGroup('view')),
 			command('gitConvenient.changes.stageAll', onGroup('stageAll')),
 			command('gitConvenient.changes.unstageAll', onGroup('unstageAll')),
@@ -115,6 +116,15 @@ export class Sidebar implements vscode.WebviewViewProvider, vscode.Disposable {
 		void vscode.commands.executeCommand('setContext', VIEW_MODE_KEY, this.viewMode);
 		api.repositories.forEach(repository => this.add(repository));
 		this.updateBadge();
+	}
+
+	/**
+	 * Back to the file the diff was opened from: the view, then the row itself,
+	 * so `⌘↓` and the arrows work where the user left off.
+	 */
+	async focusFiles(): Promise<void> {
+		await vscode.commands.executeCommand(`${Sidebar.viewId}.focus`);
+		await this.channel?.post({ type: 'focus' });
 	}
 
 	/** The state the view shows now (tests read it). */
@@ -216,6 +226,10 @@ export class Sidebar implements vscode.WebviewViewProvider, vscode.Disposable {
 	}
 
 	private async runFiles(action: FileAction, refs: readonly ChangeRef[]): Promise<void> {
+		if (action === 'copyPath') {
+			// One list in the order of the selection, even across repositories.
+			return this.actions.copyPaths(refs.map(ref => ref.path));
+		}
 		for (const [repository, rows] of this.resolve(refs)) {
 			switch (action) {
 				case 'open':

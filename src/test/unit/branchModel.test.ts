@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import {
-	BranchInfo, branchActions, branchDescription, groupBranches, isValidBranchName, localName, parseBranches, parseLines, parseRecent, syncLabel,
+	BranchInfo, branchActions, branchDescription, groupBranches, isValidBranchName, localName, parseBranches, parseLines, parseRecent, pullPlan, syncLabel,
 } from '../../branches/branchModel';
 
 const ref = (...fields: string[]) => fields.join('\0');
@@ -146,5 +146,38 @@ describe('branchActions', () => {
 			'New branch from origin/feature/x…', 'Merge origin/feature/x into main', 'Rebase main onto origin/feature/x',
 			'Pull into main using rebase',
 		]);
+	});
+});
+
+describe('pullPlan', () => {
+	it('pulls the current branch the usual way', () => {
+		assert.deepStrictEqual(pullPlan(branch('main', { current: true, upstream: 'origin/main' })), { kind: 'pull' });
+	});
+
+	it('fast-forwards another local branch without checking it out', () => {
+		assert.deepStrictEqual(pullPlan(branch('feature', { upstream: 'origin/feature' })), { kind: 'fetch', args: ['fetch', 'origin', 'feature:feature'] });
+	});
+
+	it('keeps slashes of the branch name out of the remote', () => {
+		assert.deepStrictEqual(pullPlan(branch('release/1.0', { upstream: 'origin/release/1.0' })), {
+			kind: 'fetch',
+			args: ['fetch', 'origin', 'release/1.0:release/1.0'],
+		});
+	});
+
+	it('follows an upstream that is named differently', () => {
+		assert.deepStrictEqual(pullPlan(branch('local', { upstream: 'upstream/main' })), { kind: 'fetch', args: ['fetch', 'upstream', 'main:local'] });
+	});
+
+	it('updates a remote branch from its remote', () => {
+		assert.deepStrictEqual(pullPlan(branch('origin/feature/x', { remote: 'origin' })), { kind: 'fetch', args: ['fetch', 'origin', 'feature/x'] });
+	});
+
+	it('has nothing to pull into a branch without an upstream', () => {
+		assert.deepStrictEqual(pullPlan(branch('topic')), { kind: 'none', reason: '"topic" has no upstream branch to pull from.' });
+	});
+
+	it('has nothing to pull when the upstream is another local branch', () => {
+		assert.deepStrictEqual(pullPlan(branch('topic', { upstream: 'main' })), { kind: 'none', reason: '"topic" tracks "main", which is not a remote branch.' });
 	});
 });

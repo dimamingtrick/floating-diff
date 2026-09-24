@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- **Branch context menu** in the Branches panel, like WebStorm's: Pull into This Branch, Checkout, Merge into Current Branch, Rebase Current Branch onto This Branch, New Branch from This Branch…. Pull works on a branch that is not checked out — it fast-forwards the branch where it lies and leaves your working tree alone — and the checked-out branch pulls the usual way.
+- **File context menu**: Copy Relative Path on the files of the Git Convenient panel (one path per selected file), and Open File and Copy Relative Path on the files of a commit in the Branches panel.
+- The commit message box sits **above the files** in the Git Convenient panel, where Source Control has it.
+- Closing the floating diff window hands the **focus back to the file it was opened from**, in the Git Convenient panel or the Branches panel, so `⌘↓` and the arrows carry on from there.
+- Opening a file — `⌘↓` or Open File — puts the cursor on its **first change**, so it needs no hunting; from a commit's files, on the first line that commit changed.
+- `Esc` closes the diff window when the file has **unsaved changes** too; the editor asks about them only when nothing else shows the file.
+
 ## 0.6.0
 
 - **Line blame**, like GitLens: the line the cursor is on says who last changed it and when, greyed at its end. Hover that note for the author, the date, the commit message and Open diff / File History / Copy hash. Lines you have not committed say `You • Uncommitted changes`, and unsaved edits keep the other lines right. `gitConvenient.lineBlame` turns it off.

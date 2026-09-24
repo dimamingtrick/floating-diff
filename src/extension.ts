@@ -1,9 +1,11 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { LineBlame } from './blame/lineBlame';
+import { runBranchCommand } from './branches/branchCommands';
 import { BranchesPopup } from './branches/branchesPopup';
 import { GitPanel } from './branches/gitPanel';
 import { DiffWindow } from './diffWindow';
+import type { FileChange } from './data/parse';
 import type { API, GitExtension } from './git';
 import { ExplorerPanel, pickBranchToBrowse } from './explorer/explorerPanel';
 import { getGitApi } from './gitApi';
@@ -85,6 +87,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<GitCon
 		vscode.commands.registerCommand('gitConvenient.diffWithPrevious', (resource?: unknown) =>
 			api ? diffWithPrevious(api, diffWindow, resource) : vscode.window.showInformationMessage('Git Convenient: no Git repository is open.'),
 		),
+		// The branch context menu of the Branches panel: WebStorm's actions, on a branch that need not be checked out.
+		...(['pull', 'checkout', 'merge', 'rebase', 'newBranch'] as const).map(name =>
+			vscode.commands.registerCommand(`gitConvenient.branch.${name}`, async (context?: { branch?: string; root?: string }) => {
+				const branch = typeof context?.branch === 'string' ? context.branch : undefined;
+				const ctx = branch ? await repoContext(context?.root) : undefined;
+				return ctx && branch ? runBranchCommand(ctx, name, branch) : undefined;
+			}),
+		),
+		// The file context menu of a commit's files: the path as the repository writes it, and the file itself.
+		vscode.commands.registerCommand('gitConvenient.file.copyPath', async (context?: { path?: string }) => {
+			if (context?.path) {
+				await vscode.env.clipboard.writeText(context.path);
+				vscode.window.setStatusBarMessage(`Git Convenient: copied ${context.path}`, 2000);
+			}
+		}),
+		vscode.commands.registerCommand('gitConvenient.file.open', (context?: { webview?: string; hash?: string; file?: FileChange }) => {
+			const session = context?.webview === 'gitConvenient.log' ? LogPanel.currentSession : gitPanel?.session;
+			return session && context?.hash && context.file ? session.handle({ type: 'openSource', hash: context.hash, file: context.file }) : undefined;
+		}),
 		// The commit context menu of the logs: the webview says which one, the row which commit.
 		...(['openDiff', 'copyHash', 'cherryPick', 'checkout', 'merge', 'rebase', 'revert', 'newBranch'] as const).map(name =>
 			vscode.commands.registerCommand(`gitConvenient.commit.${name}`, (context?: { webview?: string; hash?: string }) => {

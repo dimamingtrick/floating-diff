@@ -123,6 +123,83 @@ describe('Git panel', function () {
 		assert.ok(repo.git('ls-files').includes('src/one.txt'), 'feature/one merged');
 	});
 
+	it("runs WebStorm's branch actions from the branch context menu", async () => {
+		const menu = (branch: string) => ({ webview: 'gitConvenient.branchesPanel', webviewSection: 'branch', branch, root: repo.dir });
+		repo.git('branch', 'menu-checkout', 'main');
+
+		await vscode.commands.executeCommand('gitConvenient.branch.checkout', menu('menu-checkout'));
+		await waitFor(() => repo.git('rev-parse', '--abbrev-ref', 'HEAD').trim() === 'menu-checkout', 'on menu-checkout', 10000);
+		await vscode.commands.executeCommand('gitConvenient.branch.checkout', menu('main'));
+		await waitFor(() => repo.git('rev-parse', '--abbrev-ref', 'HEAD').trim() === 'main', 'back on main', 10000);
+
+		repo.git('checkout', '-q', '-b', 'menu-merge', 'main');
+		repo.write('menu.txt', 'menu\n');
+		repo.git('add', '.');
+		repo.git('commit', '-qm', 'from the branch menu');
+		// A commit of main that menu-merge does not have, so merging cannot fast-forward.
+		repo.git('checkout', '-q', 'main');
+		repo.write('kept.txt', 'kept\n');
+		repo.git('add', '.');
+		repo.git('commit', '-qm', 'kept on main');
+		const mainTip = repo.git('rev-parse', 'main').trim();
+
+		await vscode.commands.executeCommand('gitConvenient.branch.merge', menu('menu-merge'));
+
+		await waitFor(() => repo.git('ls-files').includes('menu.txt'), 'menu-merge merged into main', 10000);
+		const parents = repo.git('log', '-1', '--format=%P').trim().split(' ');
+		assert.deepStrictEqual(parents, [mainTip, repo.git('rev-parse', 'menu-merge').trim()], 'a merge commit, not a rebase');
+	});
+
+	it('rebases the current branch onto a branch from its context menu', async () => {
+		repo.git('checkout', '-q', '-b', 'menu-onto', 'main');
+		repo.write('onto.txt', 'onto\n');
+		repo.git('add', '.');
+		repo.git('commit', '-qm', 'onto');
+		repo.git('checkout', '-q', 'main');
+		repo.write('rebased.txt', 'rebased\n');
+		repo.git('add', '.');
+		repo.git('commit', '-qm', 'to replay');
+
+		await vscode.commands.executeCommand('gitConvenient.branch.rebase', { webview: 'gitConvenient.branchesPanel', webviewSection: 'branch', branch: 'menu-onto', root: repo.dir });
+
+		await waitFor(() => repo.git('ls-files').includes('onto.txt'), 'main rebased onto menu-onto', 10000);
+		assert.strictEqual(repo.git('log', '-1', '--format=%s').trim(), 'to replay', 'the commit of main is replayed on top');
+		assert.ok(repo.git('ls-files').includes('rebased.txt'));
+	});
+
+	it('puts the cursor on the first change when it opens the file of a commit', async () => {
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		repo.write('long.txt', Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join('\n') + '\n');
+		repo.git('add', '.');
+		repo.git('commit', '-qm', 'long file');
+		repo.write('long.txt', Array.from({ length: 40 }, (_, i) => `line ${i + 1}${i === 29 ? ' changed' : ''}`).join('\n') + '\n');
+		repo.git('commit', '-qam', 'change line 30');
+		const hash = repo.git('rev-parse', 'HEAD').trim();
+
+		await panel.handle({ type: 'openSource', hash, file: { path: 'long.txt', status: 'M' } });
+
+		await waitFor(() => vscode.window.activeTextEditor?.document.uri.path.endsWith('long.txt') === true, 'long.txt in an editor', 10000);
+		assert.strictEqual(vscode.window.activeTextEditor?.selection.active.line, 29, 'the cursor is on the changed line');
+	});
+
+	it("opens a file of a commit and copies its path from the file context menu", async () => {
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		const context = {
+			webview: 'gitConvenient.branchesPanel',
+			webviewSection: 'commitFile',
+			hash: repo.git('rev-parse', 'HEAD').trim(),
+			path: 'src/one.txt',
+			file: { path: 'src/one.txt', status: 'A' },
+		};
+
+		await vscode.commands.executeCommand('gitConvenient.file.copyPath', context);
+		assert.strictEqual(await vscode.env.clipboard.readText(), 'src/one.txt');
+
+		await vscode.commands.executeCommand('gitConvenient.file.open', context);
+		await waitFor(() => vscode.window.activeTextEditor?.document.uri.path.endsWith('src/one.txt') === true, 'one.txt in an editor', 10000);
+		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.scheme, 'file', 'the file itself, not a revision');
+	});
+
 	it('switches to another repository', async () => {
 		await panel.handle({ type: 'pickRepo', root: second.dir });
 		await waitFor(() => panel.session?.ctx.repository.rootUri.fsPath === second.dir, 'the other log', 10000);
